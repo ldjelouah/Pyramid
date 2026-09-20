@@ -111,6 +111,14 @@
     btnReplay: $('btn-replay'),
   };
 
+  /** Progression en échelle logarithmique : chaque multiplication compte autant,
+   *  quelle que soit la taille de l'objectif (1 → 10 € vaut autant que 10 → 100 €). */
+  function progressPercent(bankroll, stake, target) {
+    if (!(stake > 0) || !(target > stake) || !(bankroll > 0)) return 0;
+    const pct = (Math.log(bankroll / stake) / Math.log(target / stake)) * 100;
+    return Math.max(0, Math.min(100, pct));
+  }
+
   // ---------- Rendu ----------
   function showScreen(name) {
     document.querySelectorAll('.confetti').forEach((n) => n.remove());
@@ -185,7 +193,7 @@
     el.playStart.textContent = money(settings.stake);
     el.playTarget.textContent = money(settings.target);
 
-    const pct = Math.max(0, Math.min(100, (run.bankroll / settings.target) * 100));
+    const pct = progressPercent(run.bankroll, settings.stake, settings.target);
     el.playProgressBar.style.width = `${pct}%`;
     el.playProgress.setAttribute('aria-valuenow', String(Math.round(pct)));
 
