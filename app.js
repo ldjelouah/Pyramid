@@ -24,7 +24,7 @@
   // ---------- État ----------
   const defaultState = () => ({
     settings: { stake: null, target: null },
-    run: { status: 'idle', bankroll: 0, steps: [], attempt: 0, lostAt: null },
+    run: { status: 'idle', bankroll: 0, steps: [], attempt: 0, lostAt: null, pending: null },
     attempts: { total: 0, won: 0, lost: 0 },
   });
 
@@ -90,6 +90,16 @@
     playError: $('play-error'),
     playHistory: $('play-history'),
     playHistoryList: $('play-history-list'),
+    btnUndo: $('btn-undo'),
+    pendingCard: $('pending-card'),
+    pendingStake: $('pending-stake'),
+    pendingOdds: $('pending-odds'),
+    pendingPayout: $('pending-payout'),
+    btnEditOdds: $('btn-edit-odds'),
+    oddsCard: document.querySelector('.odds-card'),
+    actionsPlace: $('actions-place'),
+    actionsResult: $('actions-result'),
+    btnPlace: $('btn-place'),
     btnWin: $('btn-win'),
     btnLose: $('btn-lose'),
     // end
@@ -167,16 +177,24 @@
     }
   }
 
-  function renderHistory(listNode, wrapperNode, steps, lostAt) {
+  function renderHistory(listNode, wrapperNode, steps, { lostAt = null, pending = null, pendingStake = 0 } = {}) {
     const items = steps.map((s) => (
       `<li><span class="step-n">${s.n}</span>` +
       `<span class="step-desc"><b>${money(s.stake)}</b> × ${odds(s.odds)}</span>` +
       `<span class="step-payout">${money(s.payout)}</span></li>`
     ));
+    if (pending) {
+      items.push(
+        `<li class="pending"><span class="step-n">${steps.length + 1}</span>` +
+        `<span class="step-desc"><b>${money(pendingStake)}</b> × ${odds(pending.odds)}</span>` +
+        `<span class="step-payout">en attente</span></li>`
+      );
+    }
     if (lostAt) {
+      const withOdds = lostAt.odds ? ` × ${odds(lostAt.odds)}` : '';
       items.push(
         `<li class="lost"><span class="step-n">${lostAt.n}</span>` +
-        `<span class="step-desc"><b>${money(lostAt.stake)}</b> perdu</span>` +
+        `<span class="step-desc"><b>${money(lostAt.stake)}</b>${withOdds} perdu</span>` +
         `<span class="step-payout">−${money(lostAt.stake)}</span></li>`
       );
     }
@@ -197,7 +215,22 @@
     el.playProgressBar.style.width = `${pct}%`;
     el.playProgress.setAttribute('aria-valuenow', String(Math.round(pct)));
 
-    renderHistory(el.playHistoryList, el.playHistory, run.steps, null);
+    const pending = run.pending;
+    el.screens.play.classList.toggle('has-pending', !!pending);
+    el.oddsCard.hidden = !!pending;
+    el.pendingCard.hidden = !pending;
+    el.actionsPlace.hidden = !!pending;
+    el.actionsResult.hidden = !pending;
+    if (pending) {
+      el.pendingStake.textContent = money(run.bankroll);
+      el.pendingOdds.textContent = odds(pending.odds);
+      el.pendingPayout.textContent = money(round2(run.bankroll * pending.odds));
+    }
+
+    renderHistory(el.playHistoryList, el.playHistory, run.steps, { pending, pendingStake: run.bankroll });
+    // L'historique doit rester visible s'il n'y a que le bouton d'annulation à montrer.
+    el.btnUndo.hidden = !!pending || run.steps.length === 0;
+    el.playHistory.hidden = run.steps.length === 0 && !pending;
     updatePayout();
   }
 
@@ -210,7 +243,7 @@
     const o = currentOdds();
     const valid = !Number.isNaN(o);
     el.playPayout.textContent = valid ? money(round2(state.run.bankroll * o)) : '—';
-    el.btnWin.disabled = !valid;
+    el.btnPlace.disabled = !valid;
     el.playError.hidden = true;
     // Surligne le bouton rapide correspondant
     el.oddsQuick.querySelectorAll('button').forEach((b) => {
@@ -235,7 +268,7 @@
     el.endSteps.textContent = run.steps.length;
     el.endMult.textContent = won ? `×${fmtOdds.format(run.bankroll / settings.stake)}` : '×0,00';
 
-    renderHistory(el.endHistoryList, el.endHistory, run.steps, won ? null : run.lostAt);
+    renderHistory(el.endHistoryList, el.endHistory, run.steps, { lostAt: won ? null : run.lostAt });
 
     el.endAttempts.textContent = attempts.total;
     el.endWon.textContent = attempts.won;
@@ -254,6 +287,7 @@
       steps: [],
       attempt: state.attempts.total,
       lostAt: null,
+      pending: null,
     };
     el.inputOdds.value = '';
     save();
@@ -280,20 +314,54 @@
     startRun();
   }
 
-  function onWin() {
+  /** Enregistre la cote du pari placé ; le résultat viendra plus tard. */
+  function onPlace() {
     const o = currentOdds();
     if (Number.isNaN(o)) {
-      el.playError.textContent = 'Entre la cote du pari (au moins 1,01) avant de valider.';
+      el.playError.textContent = 'Entre la cote du pari (au moins 1,01) avant de le placer.';
       el.playError.hidden = false;
       el.inputOdds.focus();
       return;
     }
+    state.run.pending = { odds: o };
+    el.inputOdds.value = '';
+    save();
+    renderPlay();
+    if (navigator.vibrate) navigator.vibrate(10);
+  }
+
+  /** Repasse en saisie, champ pré-rempli avec la cote du pari en cours. */
+  function onEditOdds() {
+    const { run } = state;
+    if (!run.pending) return;
+    el.inputOdds.value = odds(run.pending.odds);
+    run.pending = null;
+    save();
+    renderPlay();
+    setTimeout(() => el.inputOdds.focus({ preventScroll: true }), 50);
+  }
+
+  /** Annule le dernier palier validé : il redevient un pari en attente. */
+  function onUndo() {
+    const { run } = state;
+    if (run.pending || run.steps.length === 0) return;
+    if (!window.confirm('Annuler le dernier palier ? Il redeviendra un pari en attente.')) return;
+    const last = run.steps.pop();
+    run.bankroll = last.stake;
+    run.pending = { odds: last.odds };
+    save();
+    renderPlay();
+  }
+
+  function onWin() {
     const { run, settings } = state;
+    if (!run.pending) return;
+    const o = run.pending.odds;
     const stake = run.bankroll;
     const payout = round2(stake * o);
     run.steps.push({ n: run.steps.length + 1, stake, odds: o, payout });
     run.bankroll = payout;
-    el.inputOdds.value = '';
+    run.pending = null;
 
     if (payout >= settings.target) {
       run.status = 'won';
@@ -313,7 +381,9 @@
 
   function onLose() {
     const { run } = state;
-    run.lostAt = { n: run.steps.length + 1, stake: run.bankroll };
+    if (!run.pending) return;
+    run.lostAt = { n: run.steps.length + 1, stake: run.bankroll, odds: run.pending.odds };
+    run.pending = null;
     run.status = 'lost';
     state.attempts.lost += 1;
     save();
@@ -335,7 +405,8 @@
 
   function onQuit() {
     // Abandonner la partie en cours : elle ne compte ni gagnée ni perdue.
-    if (state.run.steps.length > 0 && !window.confirm('Quitter la partie en cours ? Elle ne sera pas comptée.')) return;
+    const started = state.run.steps.length > 0 || !!state.run.pending;
+    if (started && !window.confirm('Quitter la partie en cours ? Elle ne sera pas comptée.')) return;
     state.attempts.total = Math.max(0, state.attempts.total - 1);
     onEdit();
   }
@@ -375,7 +446,7 @@
 
   el.inputOdds.addEventListener('input', updatePayout);
   el.inputOdds.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); onWin(); }
+    if (e.key === 'Enter') { e.preventDefault(); onPlace(); }
   });
   el.oddsQuick.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-odds]');
@@ -383,6 +454,9 @@
     el.inputOdds.value = odds(Number(btn.dataset.odds));
     updatePayout();
   });
+  el.btnPlace.addEventListener('click', onPlace);
+  el.btnEditOdds.addEventListener('click', onEditOdds);
+  el.btnUndo.addEventListener('click', onUndo);
   el.btnWin.addEventListener('click', onWin);
   el.btnLose.addEventListener('click', onLose);
   el.btnQuit.addEventListener('click', onQuit);

@@ -107,12 +107,30 @@
         <p id="play-error" class="error" role="alert" hidden></p>
       </div>
 
+      <div class="card pending-card" id="pending-card" hidden>
+        <div class="pending-head">
+          <span class="pending-dot" aria-hidden="true"></span>
+          <span class="pending-title">Pari en cours</span>
+          <button id="btn-edit-odds" type="button" class="btn-link btn-link-sm">Modifier la cote</button>
+        </div>
+        <p class="pending-line">
+          <strong id="pending-stake">—</strong> × <strong id="pending-odds">—</strong>
+          <span class="pending-arrow" aria-hidden="true">→</span>
+          <strong class="pending-payout" id="pending-payout">—</strong> si gagné
+        </p>
+        <p class="hint">Reviens ici quand le résultat est connu.</p>
+      </div>
+
       <section class="history" id="play-history" hidden>
         <h2 class="section-title">Paliers passés</h2>
         <ol class="history-list" id="play-history-list"></ol>
+        <button id="btn-undo" type="button" class="btn-link" hidden>Annuler le dernier palier</button>
       </section>
 
-      <div class="actions">
+      <div class="actions actions-place" id="actions-place">
+        <button id="btn-place" type="button" class="btn btn-primary">Placer le pari</button>
+      </div>
+      <div class="actions" id="actions-result" hidden>
         <button id="btn-lose" type="button" class="btn btn-lose">Perdu</button>
         <button id="btn-win" type="button" class="btn btn-win">Gagné</button>
       </div>

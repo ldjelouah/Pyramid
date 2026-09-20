@@ -5,7 +5,9 @@ chaque palier gagné tu rejoues **l'intégralité du gain** sur le palier suivan
 ton objectif.
 
 - Tu saisis la **mise de départ** et l'**objectif**.
-- À chaque palier, tu entres la **cote** du pari puis tu appuies sur **Gagné** ou **Perdu**.
+- À chaque palier, tu entres la **cote** du pari et tu appuies sur **Placer le pari**. Quand le
+  résultat est connu, tu reviens appuyer sur **Gagné** ou **Perdu**. Un palier validé par erreur
+  se corrige avec **Annuler le dernier palier**.
 - L'app calcule le montant à rejouer, la progression vers l'objectif, l'historique des paliers et
   le compteur de tentatives. Tout est sauvegardé sur le téléphone, ça marche hors ligne.
 
