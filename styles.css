@@ -152,6 +152,7 @@ button { font: inherit; color: inherit; }
 .field-input input::placeholder { color: var(--text-3); font-weight: 600; }
 .field-input .unit { color: var(--text-2); font-size: 20px; font-weight: 600; }
 .field-input-lg input { font-size: 32px; text-align: center; }
+.field-input-lg input::placeholder { font-size: 18px; font-weight: 500; color: var(--text-3); }
 
 .hint { color: var(--text-2); font-size: 14px; }
 .hint strong { color: var(--text); }
