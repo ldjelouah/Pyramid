@@ -13,13 +13,13 @@ Zéro dépendance, zéro build : du HTML, du CSS et du JavaScript.
 
 ## Lancer sur ton téléphone
 
-### 1. Activer GitHub Pages (une seule fois)
+### 1. Publication automatique sur GitHub Pages
 
-1. Sur GitHub, ouvre **Settings → Pages** du dépôt.
-2. Dans **Build and deployment**, choisis **Deploy from a branch**.
-3. Branche `main`, dossier `/ (root)`, puis **Save**.
-4. Après une minute environ, l'app est en ligne sur :
-   `https://ldjelouah.github.io/Pyramid/`
+Le workflow `.github/workflows/pages.yml` publie l'app à chaque push sur `main`.
+Il active GitHub Pages tout seul au premier passage. Si besoin, vérifie dans
+**Settings → Pages** que la source est bien **GitHub Actions**.
+
+L'app est en ligne sur : `https://ldjelouah.github.io/Pyramid/`
 
 ### 2. Ajouter à l'écran d'accueil
 
