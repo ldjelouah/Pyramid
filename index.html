@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Pyramid</title>
+  <meta name="description" content="Gestion de bankroll par paliers : rejoue le gain à chaque palier jusqu'à l'objectif.">
+  <meta name="theme-color" content="#0f1220" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f5fb" media="(prefers-color-scheme: light)">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Pyramid">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main id="app" class="app">
+
+    <!-- ÉCRAN 1 : PARAMÈTRES -->
+    <section id="screen-setup" class="screen" data-screen="setup">
+      <header class="hero">
+        <div class="logo" aria-hidden="true">
+          <svg viewBox="0 0 64 64" width="64" height="64">
+            <defs>
+              <linearGradient id="lg-gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe082"/><stop offset="1" stop-color="#f5a623"/></linearGradient>
+              <linearGradient id="lg-violet" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a78bfa"/><stop offset="1" stop-color="#7c3aed"/></linearGradient>
+            </defs>
+            <polygon points="32,10 55,52 9,52" fill="url(#lg-violet)" opacity="0.35"/>
+            <polygon points="32,10 40.5,25.5 23.5,25.5" fill="url(#lg-gold)"/>
+            <polygon points="20,32 44,32 50.5,44 13.5,44" fill="url(#lg-violet)" opacity="0.9"/>
+            <polygon points="23.5,25.5 40.5,25.5 44,32 20,32" fill="#c4b5fd"/>
+            <polygon points="13.5,44 50.5,44 55,52 9,52" fill="#6d28d9"/>
+          </svg>
+        </div>
+        <h1>Pyramid</h1>
+        <p class="tagline">Rejoue ton gain à chaque palier<br>jusqu'à ton objectif.</p>
+      </header>
+
+      <form id="setup-form" class="card form" novalidate>
+        <label class="field">
+          <span class="field-label">Mise de départ</span>
+          <span class="field-input">
+            <input id="input-stake" name="stake" type="text" inputmode="decimal" placeholder="10" autocomplete="off" required>
+            <span class="unit">€</span>
+          </span>
+        </label>
+        <label class="field">
+          <span class="field-label">Objectif à atteindre</span>
+          <span class="field-input">
+            <input id="input-target" name="target" type="text" inputmode="decimal" placeholder="100" autocomplete="off" required>
+            <span class="unit">€</span>
+          </span>
+        </label>
+        <p id="setup-error" class="error" role="alert" hidden></p>
+        <p id="setup-hint" class="hint">Soit un multiplicateur de <strong id="setup-mult">×10</strong> à atteindre.</p>
+        <button type="submit" class="btn btn-primary">Commencer</button>
+      </form>
+
+      <section id="setup-stats" class="stats" hidden>
+        <div class="stat"><span class="stat-value" id="stat-attempts">0</span><span class="stat-label">tentatives</span></div>
+        <div class="stat"><span class="stat-value stat-win" id="stat-won">0</span><span class="stat-label">réussies</span></div>
+        <div class="stat"><span class="stat-value stat-lose" id="stat-lost">0</span><span class="stat-label">perdues</span></div>
+      </section>
+
+      <button id="btn-reset" type="button" class="btn-link">Tout réinitialiser</button>
+    </section>
+
+    <!-- ÉCRAN 2 : PARTIE EN COURS -->
+    <section id="screen-play" class="screen" data-screen="play" hidden>
+      <header class="topbar">
+        <button id="btn-quit" type="button" class="btn-icon" aria-label="Retour aux paramètres">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+        </button>
+        <span class="topbar-title">Palier <strong id="play-step">1</strong></span>
+        <span class="topbar-right" id="play-attempt">Tentative 1</span>
+      </header>
+
+      <div class="card card-main" id="play-card">
+        <p class="card-kicker">Montant en jeu</p>
+        <p class="amount" id="play-bankroll">10,00 €</p>
+        <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="play-progress">
+          <div class="progress-bar" id="play-progress-bar"></div>
+        </div>
+        <div class="progress-meta">
+          <span>Départ <strong id="play-start">10,00 €</strong></span>
+          <span>Objectif <strong id="play-target">100,00 €</strong></span>
+        </div>
+      </div>
+
+      <div class="card odds-card">
+        <label class="field">
+          <span class="field-label">Cote du pari</span>
+          <span class="field-input field-input-lg">
+            <input id="input-odds" type="text" inputmode="decimal" placeholder="2.00" autocomplete="off">
+          </span>
+        </label>
+        <div class="odds-quick" id="odds-quick">
+          <button type="button" data-odds="1.5">1.50</button>
+          <button type="button" data-odds="1.8">1.80</button>
+          <button type="button" data-odds="2">2.00</button>
+          <button type="button" data-odds="3">3.00</button>
+        </div>
+        <p class="hint payout-hint">Si gagné, tu rejoues <strong id="play-payout">—</strong> au palier suivant.</p>
+        <p id="play-error" class="error" role="alert" hidden></p>
+      </div>
+
+      <section class="history" id="play-history" hidden>
+        <h2 class="section-title">Paliers passés</h2>
+        <ol class="history-list" id="play-history-list"></ol>
+      </section>
+
+      <div class="actions">
+        <button id="btn-lose" type="button" class="btn btn-lose">Perdu</button>
+        <button id="btn-win" type="button" class="btn btn-win">Gagné</button>
+      </div>
+    </section>
+
+    <!-- ÉCRAN 3 : FIN -->
+    <section id="screen-end" class="screen" data-screen="end" hidden>
+      <div class="end-hero" id="end-hero">
+        <div class="end-badge" id="end-badge" aria-hidden="true"></div>
+        <h1 id="end-title">Objectif atteint</h1>
+        <p class="end-sub" id="end-sub"></p>
+      </div>
+
+      <div class="card end-card">
+        <div class="end-row"><span>Montant final</span><strong id="end-final">0,00 €</strong></div>
+        <div class="end-row"><span>Mise de départ</span><strong id="end-stake">0,00 €</strong></div>
+        <div class="end-row"><span>Objectif</span><strong id="end-target">0,00 €</strong></div>
+        <div class="end-row"><span>Paliers passés</span><strong id="end-steps">0</strong></div>
+        <div class="end-row"><span>Multiplicateur</span><strong id="end-mult">×1,00</strong></div>
+      </div>
+
+      <section class="history" id="end-history" hidden>
+        <h2 class="section-title">Détail des paliers</h2>
+        <ol class="history-list" id="end-history-list"></ol>
+      </section>
+
+      <section class="stats">
+        <div class="stat"><span class="stat-value" id="end-attempts">0</span><span class="stat-label">tentatives</span></div>
+        <div class="stat"><span class="stat-value stat-win" id="end-won">0</span><span class="stat-label">réussies</span></div>
+        <div class="stat"><span class="stat-value stat-lose" id="end-lost">0</span><span class="stat-label">perdues</span></div>
+      </section>
+
+      <div class="actions">
+        <button id="btn-edit" type="button" class="btn btn-secondary">Modifier</button>
+        <button id="btn-replay" type="button" class="btn btn-primary">Rejouer</button>
+      </div>
+    </section>
+
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
