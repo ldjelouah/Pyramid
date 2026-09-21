@@ -8,6 +8,8 @@ ton objectif.
 - À chaque palier, tu entres la **cote** du pari et tu appuies sur **Placer le pari**. Quand le
   résultat est connu, tu reviens appuyer sur **Gagné** ou **Perdu**. Un palier validé par erreur
   se corrige avec **Annuler le dernier palier**.
+- Chaque tentative terminée est archivée dans **Tentatives précédentes**, avec le détail de ses
+  paliers, pour revoir jusqu'où tu es allé.
 - L'app calcule le montant à rejouer, la progression vers l'objectif, l'historique des paliers et
   le compteur de tentatives. Tout est sauvegardé sur le téléphone, ça marche hors ligne.
 
