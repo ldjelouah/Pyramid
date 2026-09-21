@@ -26,6 +26,7 @@
     settings: { stake: null, target: null },
     run: { status: 'idle', bankroll: 0, steps: [], attempt: 0, lostAt: null, pending: null },
     attempts: { total: 0, won: 0, lost: 0 },
+    history: [],
   });
 
   let state = load();
@@ -40,6 +41,7 @@
         settings: { ...base.settings, ...(parsed.settings || {}) },
         run: { ...base.run, ...(parsed.run || {}) },
         attempts: { ...base.attempts, ...(parsed.attempts || {}) },
+        history: Array.isArray(parsed.history) ? parsed.history : [],
       };
     } catch {
       return defaultState();
@@ -74,6 +76,8 @@
     statWon: $('stat-won'),
     statLost: $('stat-lost'),
     btnReset: $('btn-reset'),
+    setupAttempts: $('setup-attempts'),
+    setupAttemptsList: $('setup-attempts-list'),
     // play
     btnQuit: $('btn-quit'),
     playStep: $('play-step'),
@@ -117,6 +121,8 @@
     endAttempts: $('end-attempts'),
     endWon: $('end-won'),
     endLost: $('end-lost'),
+    endAttempts2: $('end-attempts-history'),
+    endAttemptsList: $('end-attempts-history-list'),
     btnEdit: $('btn-edit'),
     btnReplay: $('btn-replay'),
   };
@@ -164,6 +170,7 @@
     el.statAttempts.textContent = attempts.total;
     el.statWon.textContent = attempts.won;
     el.statLost.textContent = attempts.lost;
+    renderAttempts(el.setupAttemptsList, el.setupAttempts, state.history);
   }
 
   function updateSetupHint() {
@@ -251,6 +258,53 @@
     });
   }
 
+  const MAX_HISTORY = 100;
+
+  /** Archive la tentative qui vient de se terminer (gagnée ou perdue), la plus récente en tête. */
+  function archiveRun() {
+    const { run, settings } = state;
+    const lost = run.status === 'lost';
+    state.history.unshift({
+      attempt: run.attempt,
+      status: run.status,
+      stake: settings.stake,
+      target: settings.target,
+      steps: run.steps.map((s) => ({ ...s })),
+      lostAt: run.lostAt ? { ...run.lostAt } : null,
+      finalBankroll: lost && run.lostAt ? run.lostAt.stake : run.bankroll,
+      endedAt: Date.now(),
+    });
+    if (state.history.length > MAX_HISTORY) state.history.length = MAX_HISTORY;
+  }
+
+  const CHEVRON = '<svg class="attempt-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+
+  /** Liste dépliable des tentatives terminées, chacune avec le détail de ses paliers. */
+  function renderAttempts(listNode, wrapperNode, history) {
+    wrapperNode.hidden = history.length === 0;
+    if (history.length === 0) { listNode.innerHTML = ''; return; }
+    listNode.innerHTML = '';
+    history.forEach((h) => {
+      const won = h.status === 'won';
+      const passed = h.steps.length;
+      const lostStep = h.lostAt ? h.lostAt.n : passed + 1;
+      const title = won ? 'Objectif atteint' : `Perdu au palier ${lostStep}`;
+      const sub = `Tentative ${h.attempt} · ${passed} palier${passed > 1 ? 's' : ''} passé${passed > 1 ? 's' : ''} · départ ${money(h.stake)}`;
+      const amount = won ? money(h.finalBankroll) : `${money(h.finalBankroll)} max`;
+
+      const details = document.createElement('details');
+      details.className = `attempt ${won ? 'won' : 'lost'}`;
+      details.innerHTML =
+        `<summary><span class="attempt-dot" aria-hidden="true"></span>` +
+        `<span class="attempt-main"><span class="attempt-title">${title}</span><span class="attempt-sub">${sub}</span></span>` +
+        `<span class="attempt-amount">${amount}</span>${CHEVRON}</summary>` +
+        `<div class="attempt-body"><ol class="history-list"></ol></div>`;
+      const ol = details.querySelector('ol');
+      renderHistory(ol, details.querySelector('.attempt-body'), h.steps, { lostAt: won ? null : h.lostAt });
+      listNode.appendChild(details);
+    });
+  }
+
   function renderEnd() {
     const { run, settings, attempts } = state;
     const won = run.status === 'won';
@@ -273,6 +327,7 @@
     el.endAttempts.textContent = attempts.total;
     el.endWon.textContent = attempts.won;
     el.endLost.textContent = attempts.lost;
+    renderAttempts(el.endAttemptsList, el.endAttempts2, state.history);
 
     if (won) confetti();
   }
@@ -366,6 +421,7 @@
     if (payout >= settings.target) {
       run.status = 'won';
       state.attempts.won += 1;
+      archiveRun();
       save();
       render();
       return;
@@ -386,6 +442,7 @@
     run.pending = null;
     run.status = 'lost';
     state.attempts.lost += 1;
+    archiveRun();
     save();
     render();
     if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
