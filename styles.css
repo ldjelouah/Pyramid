@@ -202,6 +202,12 @@ button { font: inherit; color: inherit; }
   background: linear-gradient(135deg, var(--lose), var(--lose-2));
   box-shadow: 0 10px 24px rgba(239, 68, 68, 0.28);
 }
+.btn-sm { padding: 12px 14px; font-size: 15px; border-radius: 14px; }
+.btn-gold {
+  color: #1d1405;
+  background: linear-gradient(135deg, #ffd98a, var(--gold));
+  box-shadow: 0 8px 20px rgba(245, 181, 63, 0.28);
+}
 .btn-link {
   background: none;
   border: 0;
@@ -241,8 +247,8 @@ button { font: inherit; color: inherit; }
 /* ---------- Stats ---------- */
 .stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
 }
 .stats[hidden] { display: none; }
 .stat {
@@ -252,8 +258,9 @@ button { font: inherit; color: inherit; }
   padding: 12px 8px;
   text-align: center;
 }
-.stat-value { display: block; font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
-.stat-label { display: block; font-size: 12px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.05em; }
+.stat-value { display: block; font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.stat-label { display: block; font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.04em; }
+.stat-gold { color: var(--gold); }
 .stat-win { color: var(--win); }
 .stat-lose { color: var(--lose); }
 
@@ -384,6 +391,40 @@ button { font: inherit; color: inherit; }
 .pending-line .pending-payout { color: var(--win); }
 .pending-arrow { margin: 0 4px; color: var(--text-3); }
 .btn-link-sm { font-size: 13px; padding: 4px 0; align-self: auto; }
+.pending-head { gap: 12px; }
+.pending-title { white-space: nowrap; }
+#btn-cashout { color: var(--gold); font-weight: 700; }
+.pending-card .hint[hidden] { display: none; }
+
+.cashout-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.cashout-form[hidden] { display: none; }
+.cashout-actions { display: grid; grid-template-columns: 1fr 1.5fr; gap: 10px; }
+
+.side-actions { display: flex; gap: 10px; }
+.side-actions[hidden] { display: none; }
+.side-actions .btn { flex: 1; }
+
+.secured-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(245, 181, 63, 0.12);
+  color: var(--gold);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.secured-line strong { color: var(--gold); }
+.secured-line[hidden] { display: none; }
 .actions-place { grid-template-columns: 1fr; }
 .actions[hidden] { display: none; }
 
@@ -443,6 +484,18 @@ button { font: inherit; color: inherit; }
   border-radius: 999px;
   padding: 4px 8px;
 }
+.history-list li.cashout .step-n { background: rgba(245, 181, 63, 0.18); color: var(--gold); }
+.history-list li.cashout .step-payout.down { color: var(--lose); }
+.history-list li.secure { border-style: dashed; border-color: rgba(245, 181, 63, 0.4); }
+.history-list li.secure .step-n { background: rgba(245, 181, 63, 0.18); color: var(--gold); }
+.history-list li.secure .step-payout { color: var(--gold); }
+.history-list .step-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
 .history .btn-link { display: block; margin: 6px auto 0; }
 .history .btn-link[hidden] { display: none; }
 
@@ -477,6 +530,8 @@ button { font: inherit; color: inherit; }
 .attempt-sub { color: var(--text-2); font-size: 13px; }
 .attempt-amount { font-weight: 800; font-size: 15px; white-space: nowrap; }
 .attempt.won .attempt-amount { color: var(--win); }
+.attempt.cashed .attempt-dot { background: var(--gold); box-shadow: 0 0 0 3px rgba(245, 181, 63, 0.2); }
+.attempt.cashed .attempt-amount { color: var(--gold); }
 .attempt.lost .attempt-amount { color: var(--text); }
 .attempt-chevron {
   width: 18px; height: 18px;
@@ -521,8 +576,12 @@ button { font: inherit; color: inherit; }
 .end-row:last-child { border-bottom: 0; }
 .end-row strong { color: var(--text); font-size: 17px; font-variant-numeric: tabular-nums; }
 .end-row:first-child strong { font-size: 22px; }
-.screen-won .end-row:first-child strong { color: var(--win); }
-.screen-lost .end-row:first-child strong { color: var(--lose); }
+.screen-cashed .end-badge { background: rgba(245, 181, 63, 0.15); box-shadow: 0 0 0 10px rgba(245, 181, 63, 0.08); }
+.screen-cashed h1 { color: var(--gold); }
+#end-final.pos { color: var(--win); }
+#end-final.neg { color: var(--lose); }
+#end-final.zero { color: var(--text); }
+.end-row[hidden] { display: none; }
 
 /* ---------- Confetti (victory) ---------- */
 .confetti {

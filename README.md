@@ -8,6 +8,11 @@ ton objectif.
 - À chaque palier, tu entres la **cote** du pari et tu appuies sur **Placer le pari**. Quand le
   résultat est connu, tu reviens appuyer sur **Gagné** ou **Perdu**. Un palier validé par erreur
   se corrige avec **Annuler le dernier palier**.
+- **Récupérer ma mise** met de côté ta mise de départ dès que le montant en jeu la dépasse :
+  la suite de la série se joue sans risque sur tes fonds propres.
+- **Cashout** enregistre le montant proposé par le bookmaker pour solder le pari en cours. Ce
+  montant devient la mise du palier suivant.
+- **Encaisser** arrête la série avant l'objectif et garde le total obtenu.
 - Chaque tentative terminée est archivée dans **Tentatives précédentes**, avec le détail de ses
   paliers, pour revoir jusqu'où tu es allé.
 - L'app calcule le montant à rejouer, la progression vers l'objectif, l'historique des paliers et
