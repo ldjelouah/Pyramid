@@ -13,6 +13,14 @@
   const odds = (n) => fmtOdds.format(n);
   const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
+  /** Type d'une entrée de l'historique des paliers ('win' par défaut pour les anciens états). */
+  const kindOf = (step) => step.kind || 'win';
+  /** Nombre de paliers joués : les récupérations de mise ne sont pas des paliers. */
+  const tierCount = (steps) => steps.filter((s) => kindOf(s) !== 'secure').length;
+  /** Total de la tentative : montant en jeu + montant mis de côté. */
+  const totalOf = (run) => round2(run.bankroll + (run.secured || 0));
+  const LOCK = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+
   /** Accepte "12", "12,5", "12.50", " 1 234,5 " → nombre ou NaN. */
   const parseNum = (raw) => {
     if (raw == null) return NaN;
@@ -24,8 +32,8 @@
   // ---------- État ----------
   const defaultState = () => ({
     settings: { stake: null, target: null },
-    run: { status: 'idle', bankroll: 0, steps: [], attempt: 0, lostAt: null, pending: null },
-    attempts: { total: 0, won: 0, lost: 0 },
+    run: { status: 'idle', bankroll: 0, steps: [], attempt: 0, lostAt: null, pending: null, secured: 0 },
+    attempts: { total: 0, won: 0, lost: 0, cashed: 0 },
     history: [],
   });
 
@@ -95,6 +103,22 @@
     playHistory: $('play-history'),
     playHistoryList: $('play-history-list'),
     btnUndo: $('btn-undo'),
+    playSecured: $('play-secured'),
+    playSecuredAmount: $('play-secured-amount'),
+    sideActions: $('side-actions'),
+    btnSecure: $('btn-secure'),
+    btnCashin: $('btn-cashin'),
+    btnCashout: $('btn-cashout'),
+    cashoutForm: $('cashout-form'),
+    inputCashout: $('input-cashout'),
+    cashoutError: $('cashout-error'),
+    btnCashoutCancel: $('btn-cashout-cancel'),
+    pendingHint: $('pending-hint'),
+    statCashed: $('stat-cashed'),
+    endCashed: $('end-cashed'),
+    endTotal: $('end-total'),
+    endSecured: $('end-secured'),
+    endSecuredRow: $('end-secured-row'),
     pendingCard: $('pending-card'),
     pendingStake: $('pending-stake'),
     pendingOdds: $('pending-odds'),
@@ -149,7 +173,7 @@
     if (run.status === 'playing') {
       renderPlay();
       showScreen('play');
-    } else if (run.status === 'won' || run.status === 'lost') {
+    } else if (run.status === 'won' || run.status === 'lost' || run.status === 'cashed') {
       renderEnd();
       showScreen('end');
     } else {
@@ -170,6 +194,7 @@
     el.statAttempts.textContent = attempts.total;
     el.statWon.textContent = attempts.won;
     el.statLost.textContent = attempts.lost;
+    el.statCashed.textContent = attempts.cashed;
     renderAttempts(el.setupAttemptsList, el.setupAttempts, state.history);
   }
 
@@ -184,15 +209,29 @@
     }
   }
 
-  function renderHistory(listNode, wrapperNode, steps, { lostAt = null, pending = null, pendingStake = 0 } = {}) {
-    const items = steps.map((s) => (
-      `<li><span class="step-n">${s.n}</span>` +
+  function stepRow(s) {
+    const kind = kindOf(s);
+    if (kind === 'secure') {
+      return `<li class="secure"><span class="step-n">${LOCK}</span>` +
+        `<span class="step-desc">Mise de départ récupérée</span>` +
+        `<span class="step-payout">+${money(s.amount)}</span></li>`;
+    }
+    if (kind === 'cashout') {
+      const dir = s.payout >= s.stake ? 'up' : 'down';
+      return `<li class="cashout"><span class="step-n">${s.n}</span>` +
+        `<span class="step-desc"><b>${money(s.stake)}</b> <span class="step-tag">cashout</span></span>` +
+        `<span class="step-payout ${dir}">${money(s.payout)}</span></li>`;
+    }
+    return `<li><span class="step-n">${s.n}</span>` +
       `<span class="step-desc"><b>${money(s.stake)}</b> × ${odds(s.odds)}</span>` +
-      `<span class="step-payout">${money(s.payout)}</span></li>`
-    ));
+      `<span class="step-payout">${money(s.payout)}</span></li>`;
+  }
+
+  function renderHistory(listNode, wrapperNode, steps, { lostAt = null, pending = null, pendingStake = 0 } = {}) {
+    const items = steps.map(stepRow);
     if (pending) {
       items.push(
-        `<li class="pending"><span class="step-n">${steps.length + 1}</span>` +
+        `<li class="pending"><span class="step-n">${tierCount(steps) + 1}</span>` +
         `<span class="step-desc"><b>${money(pendingStake)}</b> × ${odds(pending.odds)}</span>` +
         `<span class="step-payout">en attente</span></li>`
       );
@@ -211,14 +250,17 @@
 
   function renderPlay() {
     const { run, settings } = state;
-    const stepNumber = run.steps.length + 1;
-    el.playStep.textContent = stepNumber;
+    const tiers = tierCount(run.steps);
+    el.playStep.textContent = tiers + 1;
     el.playAttempt.textContent = `Tentative ${run.attempt}`;
     el.playBankroll.textContent = money(run.bankroll);
     el.playStart.textContent = money(settings.stake);
     el.playTarget.textContent = money(settings.target);
 
-    const pct = progressPercent(run.bankroll, settings.stake, settings.target);
+    const total = totalOf(run);
+    const pct = progressPercent(total, settings.stake, settings.target);
+    el.playSecured.hidden = !(run.secured > 0);
+    if (run.secured > 0) el.playSecuredAmount.textContent = money(run.secured);
     el.playProgressBar.style.width = `${pct}%`;
     el.playProgress.setAttribute('aria-valuenow', String(Math.round(pct)));
 
@@ -234,9 +276,26 @@
       el.pendingPayout.textContent = money(round2(run.bankroll * pending.odds));
     }
 
+    // Le formulaire de cashout repart toujours fermé.
+    el.cashoutForm.hidden = true;
+    el.pendingHint.hidden = false;
+
+    // Actions secondaires : récupérer la mise, encaisser la série.
+    const canSecure = !pending && !(run.secured > 0) && run.bankroll > settings.stake;
+    const canCashIn = !pending && run.steps.length > 0;
+    el.btnSecure.hidden = !canSecure;
+    el.btnSecure.textContent = `Récupérer ma mise · ${money(settings.stake)}`;
+    el.btnCashin.hidden = !canCashIn;
+    el.btnCashin.textContent = `Encaisser · ${money(total)}`;
+    el.sideActions.hidden = !canSecure && !canCashIn;
+
     renderHistory(el.playHistoryList, el.playHistory, run.steps, { pending, pendingStake: run.bankroll });
     // L'historique doit rester visible s'il n'y a que le bouton d'annulation à montrer.
     el.btnUndo.hidden = !!pending || run.steps.length === 0;
+    const last = run.steps[run.steps.length - 1];
+    el.btnUndo.textContent = last && kindOf(last) === 'secure'
+      ? 'Annuler la récupération de la mise'
+      : 'Annuler le dernier palier';
     el.playHistory.hidden = run.steps.length === 0 && !pending;
     updatePayout();
   }
@@ -272,6 +331,7 @@
       steps: run.steps.map((s) => ({ ...s })),
       lostAt: run.lostAt ? { ...run.lostAt } : null,
       finalBankroll: lost && run.lostAt ? run.lostAt.stake : run.bankroll,
+      secured: run.secured || 0,
       endedAt: Date.now(),
     });
     if (state.history.length > MAX_HISTORY) state.history.length = MAX_HISTORY;
@@ -285,48 +345,77 @@
     if (history.length === 0) { listNode.innerHTML = ''; return; }
     listNode.innerHTML = '';
     history.forEach((h) => {
-      const won = h.status === 'won';
-      const passed = h.steps.length;
+      const status = h.status;
+      const lost = status === 'lost';
+      const secured = h.secured || 0;
+      const passed = tierCount(h.steps);
       const lostStep = h.lostAt ? h.lostAt.n : passed + 1;
-      const title = won ? 'Objectif atteint' : `Perdu au palier ${lostStep}`;
-      const sub = `Tentative ${h.attempt} · ${passed} palier${passed > 1 ? 's' : ''} passé${passed > 1 ? 's' : ''} · départ ${money(h.stake)}`;
-      const amount = won ? money(h.finalBankroll) : `${money(h.finalBankroll)} max`;
+      const titles = { won: 'Objectif atteint', cashed: 'Série encaissée', lost: `Perdu au palier ${lostStep}` };
+      const title = titles[status] || titles.lost;
+      const sub = `Tentative ${h.attempt} · ${passed} palier${passed > 1 ? 's' : ''} passé${passed > 1 ? 's' : ''} · départ ${money(h.stake)}` +
+        (secured > 0 ? ' · mise récupérée' : '');
+      const amount = lost ? `${money(h.finalBankroll)} max` : money(round2(h.finalBankroll + secured));
 
       const details = document.createElement('details');
-      details.className = `attempt ${won ? 'won' : 'lost'}`;
+      details.className = `attempt ${status}`;
       details.innerHTML =
         `<summary><span class="attempt-dot" aria-hidden="true"></span>` +
         `<span class="attempt-main"><span class="attempt-title">${title}</span><span class="attempt-sub">${sub}</span></span>` +
         `<span class="attempt-amount">${amount}</span>${CHEVRON}</summary>` +
         `<div class="attempt-body"><ol class="history-list"></ol></div>`;
       const ol = details.querySelector('ol');
-      renderHistory(ol, details.querySelector('.attempt-body'), h.steps, { lostAt: won ? null : h.lostAt });
+      renderHistory(ol, details.querySelector('.attempt-body'), h.steps, { lostAt: lost ? h.lostAt : null });
       listNode.appendChild(details);
     });
   }
 
   function renderEnd() {
     const { run, settings, attempts } = state;
-    const won = run.status === 'won';
-    el.screens.end.classList.toggle('screen-won', won);
-    el.screens.end.classList.toggle('screen-lost', !won);
-    el.endBadge.textContent = won ? '🏆' : '💥';
-    el.endTitle.textContent = won ? 'Objectif atteint' : `Perdu au palier ${run.lostAt ? run.lostAt.n : run.steps.length + 1}`;
-    el.endSub.textContent = won
-      ? `Tu es passé de ${money(settings.stake)} à ${money(run.bankroll)} en ${run.steps.length} palier${run.steps.length > 1 ? 's' : ''}.`
-      : `Tu avais ${money(run.lostAt ? run.lostAt.stake : run.bankroll)} en jeu. La mise perdue reste ta mise de départ : ${money(settings.stake)}.`;
+    const status = run.status;
+    const won = status === 'won';
+    const cashed = status === 'cashed';
+    const lost = status === 'lost';
+    const secured = run.secured || 0;
+    const tiers = tierCount(run.steps);
+    const plural = tiers > 1 ? 's' : '';
+    // En cas de perte, il ne reste que ce qui a été mis de côté.
+    const total = lost ? secured : totalOf(run);
+    const net = round2(total - settings.stake);
 
-    el.endFinal.textContent = won ? money(run.bankroll) : `−${money(settings.stake)}`;
+    el.screens.end.classList.toggle('screen-won', won);
+    el.screens.end.classList.toggle('screen-cashed', cashed);
+    el.screens.end.classList.toggle('screen-lost', lost);
+    el.endBadge.textContent = won ? '🏆' : cashed ? '💰' : '💥';
+    el.endTitle.textContent = won
+      ? 'Objectif atteint'
+      : cashed ? 'Série encaissée' : `Perdu au palier ${run.lostAt ? run.lostAt.n : tiers + 1}`;
+    const lostStake = run.lostAt ? run.lostAt.stake : run.bankroll;
+    el.endSub.textContent = won
+      ? `Tu es passé de ${money(settings.stake)} à ${money(total)} en ${tiers} palier${plural}.`
+      : cashed
+        ? `Tu as encaissé ${money(total)} après ${tiers} palier${plural}.`
+        : secured > 0
+          ? `Tu avais ${money(lostStake)} en jeu. Ta mise de départ était déjà récupérée : tu ne perds rien.`
+          : `Tu avais ${money(lostStake)} en jeu. La mise perdue reste ta mise de départ : ${money(settings.stake)}.`;
+
+    el.endFinal.textContent = net > 0 ? `+${money(net)}` : net < 0 ? `−${money(-net)}` : money(0);
+    el.endFinal.classList.toggle('pos', net > 0);
+    el.endFinal.classList.toggle('neg', net < 0);
+    el.endFinal.classList.toggle('zero', net === 0);
+    el.endTotal.textContent = money(total);
+    el.endSecuredRow.hidden = !(secured > 0);
+    el.endSecured.textContent = money(secured);
     el.endStake.textContent = money(settings.stake);
     el.endTarget.textContent = money(settings.target);
-    el.endSteps.textContent = run.steps.length;
-    el.endMult.textContent = won ? `×${fmtOdds.format(run.bankroll / settings.stake)}` : '×0,00';
+    el.endSteps.textContent = tiers;
+    el.endMult.textContent = `×${fmtOdds.format(total / settings.stake)}`;
 
-    renderHistory(el.endHistoryList, el.endHistory, run.steps, { lostAt: won ? null : run.lostAt });
+    renderHistory(el.endHistoryList, el.endHistory, run.steps, { lostAt: lost ? run.lostAt : null });
 
     el.endAttempts.textContent = attempts.total;
     el.endWon.textContent = attempts.won;
     el.endLost.textContent = attempts.lost;
+    el.endCashed.textContent = attempts.cashed;
     renderAttempts(el.endAttemptsList, el.endAttempts2, state.history);
 
     if (won) confetti();
@@ -343,6 +432,7 @@
       attempt: state.attempts.total,
       lostAt: null,
       pending: null,
+      secured: 0,
     };
     el.inputOdds.value = '';
     save();
@@ -396,30 +486,40 @@
     setTimeout(() => el.inputOdds.focus({ preventScroll: true }), 50);
   }
 
-  /** Annule le dernier palier validé : il redevient un pari en attente. */
+  /** Annule la dernière entrée : un palier (gagné ou soldé) redevient un pari en attente,
+   *  une récupération de mise est remise en jeu. */
   function onUndo() {
     const { run } = state;
     if (run.pending || run.steps.length === 0) return;
-    if (!window.confirm('Annuler le dernier palier ? Il redeviendra un pari en attente.')) return;
-    const last = run.steps.pop();
-    run.bankroll = last.stake;
-    run.pending = { odds: last.odds };
+    const last = run.steps[run.steps.length - 1];
+    const kind = kindOf(last);
+    const message = kind === 'secure'
+      ? 'Annuler la récupération de la mise ? Elle sera remise en jeu.'
+      : 'Annuler le dernier palier ? Il redeviendra un pari en attente.';
+    if (!window.confirm(message)) return;
+    run.steps.pop();
+    if (kind === 'secure') {
+      run.bankroll = round2(run.bankroll + last.amount);
+      run.secured = round2((run.secured || 0) - last.amount);
+    } else {
+      run.bankroll = last.stake;
+      run.pending = { odds: last.odds };
+    }
     save();
     renderPlay();
   }
 
-  function onWin() {
-    const { run, settings } = state;
-    if (!run.pending) return;
-    const o = run.pending.odds;
-    const stake = run.bankroll;
-    const payout = round2(stake * o);
-    run.steps.push({ n: run.steps.length + 1, stake, odds: o, payout });
-    run.bankroll = payout;
-    run.pending = null;
+  function bumpCard() {
+    el.playCard.classList.remove('bump');
+    void el.playCard.offsetWidth; // relance l'animation
+    el.playCard.classList.add('bump');
+    if (navigator.vibrate) navigator.vibrate(15);
+  }
 
-    if (payout >= settings.target) {
-      run.status = 'won';
+  /** Après un gain ou un cashout : victoire si le total atteint l'objectif, sinon palier suivant. */
+  function afterTierSettled() {
+    if (totalOf(state.run) >= state.settings.target) {
+      state.run.status = 'won';
       state.attempts.won += 1;
       archiveRun();
       save();
@@ -428,17 +528,85 @@
     }
     save();
     renderPlay();
-    el.playCard.classList.remove('bump');
-    // relance l'animation
-    void el.playCard.offsetWidth;
-    el.playCard.classList.add('bump');
-    if (navigator.vibrate) navigator.vibrate(15);
+    bumpCard();
+  }
+
+  function onWin() {
+    const { run } = state;
+    if (!run.pending) return;
+    const o = run.pending.odds;
+    const stake = run.bankroll;
+    const payout = round2(stake * o);
+    run.steps.push({ kind: 'win', n: tierCount(run.steps) + 1, stake, odds: o, payout });
+    run.bankroll = payout;
+    run.pending = null;
+    afterTierSettled();
+  }
+
+  /** Cashout du bookmaker : le pari est soldé au montant proposé, qui devient la nouvelle mise. */
+  function onCashoutOpen() {
+    if (!state.run.pending) return;
+    el.cashoutForm.hidden = false;
+    el.pendingHint.hidden = true;
+    el.cashoutError.hidden = true;
+    el.inputCashout.value = '';
+    setTimeout(() => el.inputCashout.focus({ preventScroll: true }), 50);
+  }
+
+  function onCashoutCancel() {
+    el.cashoutForm.hidden = true;
+    el.pendingHint.hidden = false;
+  }
+
+  function onCashoutSubmit(event) {
+    event.preventDefault();
+    const { run } = state;
+    if (!run.pending) return;
+    const amount = parseNum(el.inputCashout.value);
+    if (!(amount > 0)) {
+      el.cashoutError.textContent = 'Indique le montant proposé par le bookmaker.';
+      el.cashoutError.hidden = false;
+      el.inputCashout.focus();
+      return;
+    }
+    const stake = run.bankroll;
+    const payout = round2(amount);
+    run.steps.push({ kind: 'cashout', n: tierCount(run.steps) + 1, stake, odds: run.pending.odds, payout });
+    run.bankroll = payout;
+    run.pending = null;
+    afterTierSettled();
+  }
+
+  /** Met de côté la mise de départ, une fois par tentative, dès que le montant en jeu la dépasse. */
+  function onSecure() {
+    const { run, settings } = state;
+    if (run.pending || run.secured > 0 || !(run.bankroll > settings.stake)) return;
+    const amount = settings.stake;
+    run.bankroll = round2(run.bankroll - amount);
+    run.secured = amount;
+    run.steps.push({ kind: 'secure', amount });
+    save();
+    renderPlay();
+    if (navigator.vibrate) navigator.vibrate(10);
+  }
+
+  /** Arrête la série avant l'objectif et encaisse le total. */
+  function onCashIn() {
+    const { run } = state;
+    if (run.pending || run.steps.length === 0) return;
+    const total = totalOf(run);
+    if (!window.confirm(`Encaisser ${money(total)} et arrêter la série ?`)) return;
+    run.status = 'cashed';
+    state.attempts.cashed += 1;
+    archiveRun();
+    save();
+    render();
   }
 
   function onLose() {
     const { run } = state;
     if (!run.pending) return;
-    run.lostAt = { n: run.steps.length + 1, stake: run.bankroll, odds: run.pending.odds };
+    run.lostAt = { n: tierCount(run.steps) + 1, stake: run.bankroll, odds: run.pending.odds };
     run.pending = null;
     run.status = 'lost';
     state.attempts.lost += 1;
@@ -514,6 +682,11 @@
   el.btnPlace.addEventListener('click', onPlace);
   el.btnEditOdds.addEventListener('click', onEditOdds);
   el.btnUndo.addEventListener('click', onUndo);
+  el.btnSecure.addEventListener('click', onSecure);
+  el.btnCashin.addEventListener('click', onCashIn);
+  el.btnCashout.addEventListener('click', onCashoutOpen);
+  el.btnCashoutCancel.addEventListener('click', onCashoutCancel);
+  el.cashoutForm.addEventListener('submit', onCashoutSubmit);
   el.btnWin.addEventListener('click', onWin);
   el.btnLose.addEventListener('click', onLose);
   el.btnQuit.addEventListener('click', onQuit);

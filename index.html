@@ -63,6 +63,7 @@
         <div class="stat"><span class="stat-value" id="stat-attempts">0</span><span class="stat-label">tentatives</span></div>
         <div class="stat"><span class="stat-value stat-win" id="stat-won">0</span><span class="stat-label">réussies</span></div>
         <div class="stat"><span class="stat-value stat-lose" id="stat-lost">0</span><span class="stat-label">perdues</span></div>
+        <div class="stat"><span class="stat-value stat-gold" id="stat-cashed">0</span><span class="stat-label">encaissées</span></div>
       </section>
 
       <section class="attempts" id="setup-attempts" hidden>
@@ -93,6 +94,10 @@
           <span>Départ <strong id="play-start">10,00 €</strong></span>
           <span>Objectif <strong id="play-target">100,00 €</strong></span>
         </div>
+        <p class="secured-line" id="play-secured" hidden>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          Sécurisé <strong id="play-secured-amount">—</strong>
+        </p>
       </div>
 
       <div class="card odds-card">
@@ -112,10 +117,16 @@
         <p id="play-error" class="error" role="alert" hidden></p>
       </div>
 
+      <div class="side-actions" id="side-actions" hidden>
+        <button id="btn-secure" type="button" class="btn btn-secondary btn-sm" hidden>Récupérer ma mise</button>
+        <button id="btn-cashin" type="button" class="btn btn-gold btn-sm" hidden>Encaisser</button>
+      </div>
+
       <div class="card pending-card" id="pending-card" hidden>
         <div class="pending-head">
           <span class="pending-dot" aria-hidden="true"></span>
           <span class="pending-title">Pari en cours</span>
+          <button id="btn-cashout" type="button" class="btn-link btn-link-sm">Cashout</button>
           <button id="btn-edit-odds" type="button" class="btn-link btn-link-sm">Modifier la cote</button>
         </div>
         <p class="pending-line">
@@ -123,7 +134,21 @@
           <span class="pending-arrow" aria-hidden="true">→</span>
           <strong class="pending-payout" id="pending-payout">—</strong> si gagné
         </p>
-        <p class="hint">Reviens ici quand le résultat est connu.</p>
+        <p class="hint" id="pending-hint">Reviens ici quand le résultat est connu.</p>
+        <form class="cashout-form" id="cashout-form" hidden novalidate>
+          <label class="field">
+            <span class="field-label">Montant proposé par le bookmaker</span>
+            <span class="field-input">
+              <input id="input-cashout" type="text" inputmode="decimal" placeholder="0,00" autocomplete="off">
+              <span class="unit">€</span>
+            </span>
+          </label>
+          <p id="cashout-error" class="error" role="alert" hidden></p>
+          <div class="cashout-actions">
+            <button id="btn-cashout-cancel" type="button" class="btn btn-secondary btn-sm">Annuler</button>
+            <button type="submit" class="btn btn-gold btn-sm">Valider le cashout</button>
+          </div>
+        </form>
       </div>
 
       <section class="history" id="play-history" hidden>
@@ -150,7 +175,9 @@
       </div>
 
       <div class="card end-card">
-        <div class="end-row"><span>Montant final</span><strong id="end-final">0,00 €</strong></div>
+        <div class="end-row"><span>Résultat net</span><strong id="end-final">0,00 €</strong></div>
+        <div class="end-row" id="end-total-row"><span>Total obtenu</span><strong id="end-total">0,00 €</strong></div>
+        <div class="end-row" id="end-secured-row" hidden><span>Mise récupérée</span><strong id="end-secured">0,00 €</strong></div>
         <div class="end-row"><span>Mise de départ</span><strong id="end-stake">0,00 €</strong></div>
         <div class="end-row"><span>Objectif</span><strong id="end-target">0,00 €</strong></div>
         <div class="end-row"><span>Paliers passés</span><strong id="end-steps">0</strong></div>
@@ -166,6 +193,7 @@
         <div class="stat"><span class="stat-value" id="end-attempts">0</span><span class="stat-label">tentatives</span></div>
         <div class="stat"><span class="stat-value stat-win" id="end-won">0</span><span class="stat-label">réussies</span></div>
         <div class="stat"><span class="stat-value stat-lose" id="end-lost">0</span><span class="stat-label">perdues</span></div>
+        <div class="stat"><span class="stat-value stat-gold" id="end-cashed">0</span><span class="stat-label">encaissées</span></div>
       </section>
 
       <section class="attempts" id="end-attempts-history" hidden>
