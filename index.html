@@ -56,6 +56,7 @@
         </label>
         <p id="setup-error" class="error" role="alert" hidden></p>
         <p id="setup-hint" class="hint">Soit un multiplicateur de <strong id="setup-mult">×10</strong> à atteindre.</p>
+        <p class="notice"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span>Après chaque gain, <strong>5 % du bénéfice</strong> est mis de côté automatiquement. Le reste est rejoué au palier suivant.</span></p>
         <button type="submit" class="btn btn-primary">Commencer</button>
       </form>
 
@@ -114,6 +115,7 @@
           <button type="button" data-odds="3">3.00</button>
         </div>
         <p class="hint payout-hint">Si gagné, tu rejoues <strong id="play-payout">—</strong> au palier suivant.</p>
+        <p class="notice notice-sm"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span>5 % du bénéfice de chaque gain est mis de côté automatiquement.</span></p>
         <p id="play-error" class="error" role="alert" hidden></p>
       </div>
 
@@ -127,13 +129,14 @@
           <span class="pending-dot" aria-hidden="true"></span>
           <span class="pending-title">Pari en cours</span>
           <button id="btn-cashout" type="button" class="btn-link btn-link-sm">Cashout</button>
-          <button id="btn-edit-odds" type="button" class="btn-link btn-link-sm">Modifier la cote</button>
+          <button id="btn-edit-odds" type="button" class="btn-link btn-link-sm" aria-label="Modifier la cote">Modifier</button>
         </div>
         <p class="pending-line">
           <strong id="pending-stake">—</strong> × <strong id="pending-odds">—</strong>
           <span class="pending-arrow" aria-hidden="true">→</span>
           <strong class="pending-payout" id="pending-payout">—</strong> si gagné
         </p>
+        <p class="hint withheld-hint" id="pending-withheld"></p>
         <p class="hint" id="pending-hint">Reviens ici quand le résultat est connu.</p>
         <form class="cashout-form" id="cashout-form" hidden novalidate>
           <label class="field">
@@ -177,7 +180,7 @@
       <div class="card end-card">
         <div class="end-row"><span>Résultat net</span><strong id="end-final">0,00 €</strong></div>
         <div class="end-row" id="end-total-row"><span>Total obtenu</span><strong id="end-total">0,00 €</strong></div>
-        <div class="end-row" id="end-secured-row" hidden><span>Mise récupérée</span><strong id="end-secured">0,00 €</strong></div>
+        <div class="end-row" id="end-secured-row" hidden><span>Mis de côté</span><strong id="end-secured">0,00 €</strong></div>
         <div class="end-row"><span>Mise de départ</span><strong id="end-stake">0,00 €</strong></div>
         <div class="end-row"><span>Objectif</span><strong id="end-target">0,00 €</strong></div>
         <div class="end-row"><span>Paliers passés</span><strong id="end-steps">0</strong></div>

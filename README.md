@@ -8,6 +8,8 @@ ton objectif.
 - À chaque palier, tu entres la **cote** du pari et tu appuies sur **Placer le pari**. Quand le
   résultat est connu, tu reviens appuyer sur **Gagné** ou **Perdu**. Un palier validé par erreur
   se corrige avec **Annuler le dernier palier**.
+- Après chaque gain, **5 % du bénéfice** est mis de côté automatiquement. Le reste est rejoué.
+  Ce montant s'ajoute à la réserve « Sécurisé » et reste acquis même si la série casse.
 - **Récupérer ma mise** met de côté ta mise de départ dès que le montant en jeu la dépasse :
   la suite de la série se joue sans risque sur tes fonds propres.
 - **Cashout** enregistre le montant proposé par le bookmaker pour solder le pari en cours. Ce
