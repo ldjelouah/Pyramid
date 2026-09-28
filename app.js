@@ -17,6 +17,11 @@
   const kindOf = (step) => step.kind || 'win';
   /** Nombre de paliers joués : les récupérations de mise ne sont pas des paliers. */
   const tierCount = (steps) => steps.filter((s) => kindOf(s) !== 'secure').length;
+  /** Part du bénéfice de chaque palier gagné mise de côté automatiquement. */
+  const WITHHOLD_RATE = 0.05;
+  const withheldFor = (stake, payout) => (payout > stake ? round2((payout - stake) * WITHHOLD_RATE) : 0);
+  /** La mise de départ a-t-elle déjà été récupérée pendant cette tentative ? */
+  const stakeRecovered = (steps) => steps.some((s) => kindOf(s) === 'secure');
   /** Total de la tentative : montant en jeu + montant mis de côté. */
   const totalOf = (run) => round2(run.bankroll + (run.secured || 0));
   const LOCK = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
@@ -114,6 +119,7 @@
     cashoutError: $('cashout-error'),
     btnCashoutCancel: $('btn-cashout-cancel'),
     pendingHint: $('pending-hint'),
+    pendingWithheld: $('pending-withheld'),
     statCashed: $('stat-cashed'),
     endCashed: $('end-cashed'),
     endTotal: $('end-total'),
@@ -219,12 +225,16 @@
     if (kind === 'cashout') {
       const dir = s.payout >= s.stake ? 'up' : 'down';
       return `<li class="cashout"><span class="step-n">${s.n}</span>` +
-        `<span class="step-desc"><b>${money(s.stake)}</b> <span class="step-tag">cashout</span></span>` +
+        `<span class="step-desc"><b>${money(s.stake)}</b> <span class="step-tag">cashout</span>${withheldTag(s)}</span>` +
         `<span class="step-payout ${dir}">${money(s.payout)}</span></li>`;
     }
     return `<li><span class="step-n">${s.n}</span>` +
-      `<span class="step-desc"><b>${money(s.stake)}</b> × ${odds(s.odds)}</span>` +
+      `<span class="step-desc"><b>${money(s.stake)}</b> × ${odds(s.odds)}${withheldTag(s)}</span>` +
       `<span class="step-payout">${money(s.payout)}</span></li>`;
+  }
+
+  function withheldTag(s) {
+    return s.withheld > 0 ? `<span class="step-withheld">${money(s.withheld)} mis de côté</span>` : '';
   }
 
   function renderHistory(listNode, wrapperNode, steps, { lostAt = null, pending = null, pendingStake = 0 } = {}) {
@@ -273,7 +283,12 @@
     if (pending) {
       el.pendingStake.textContent = money(run.bankroll);
       el.pendingOdds.textContent = odds(pending.odds);
-      el.pendingPayout.textContent = money(round2(run.bankroll * pending.odds));
+      const gross = round2(run.bankroll * pending.odds);
+      const kept = withheldFor(run.bankroll, gross);
+      el.pendingPayout.textContent = money(gross);
+      el.pendingWithheld.textContent = kept > 0
+        ? `${money(kept)} mis de côté, ${money(round2(gross - kept))} rejoués au palier suivant.`
+        : '';
     }
 
     // Le formulaire de cashout repart toujours fermé.
@@ -281,7 +296,7 @@
     el.pendingHint.hidden = false;
 
     // Actions secondaires : récupérer la mise, encaisser la série.
-    const canSecure = !pending && !(run.secured > 0) && run.bankroll > settings.stake;
+    const canSecure = !pending && !stakeRecovered(run.steps) && run.bankroll > settings.stake;
     const canCashIn = !pending && run.steps.length > 0;
     el.btnSecure.hidden = !canSecure;
     el.btnSecure.textContent = `Récupérer ma mise · ${money(settings.stake)}`;
@@ -308,7 +323,13 @@
   function updatePayout() {
     const o = currentOdds();
     const valid = !Number.isNaN(o);
-    el.playPayout.textContent = valid ? money(round2(state.run.bankroll * o)) : '—';
+    if (valid) {
+      const stake = state.run.bankroll;
+      const gross = round2(stake * o);
+      el.playPayout.textContent = money(round2(gross - withheldFor(stake, gross)));
+    } else {
+      el.playPayout.textContent = '—';
+    }
     el.btnPlace.disabled = !valid;
     el.playError.hidden = true;
     // Surligne le bouton rapide correspondant
@@ -353,7 +374,8 @@
       const titles = { won: 'Objectif atteint', cashed: 'Série encaissée', lost: `Perdu au palier ${lostStep}` };
       const title = titles[status] || titles.lost;
       const sub = `Tentative ${h.attempt} · ${passed} palier${passed > 1 ? 's' : ''} passé${passed > 1 ? 's' : ''} · départ ${money(h.stake)}` +
-        (secured > 0 ? ' · mise récupérée' : '');
+        (stakeRecovered(h.steps) ? ' · mise récupérée' : '') +
+        (lost && secured > 0 ? ` · ${money(secured)} gardés` : '');
       const amount = lost ? `${money(h.finalBankroll)} max` : money(round2(h.finalBankroll + secured));
 
       const details = document.createElement('details');
@@ -394,8 +416,10 @@
       ? `Tu es passé de ${money(settings.stake)} à ${money(total)} en ${tiers} palier${plural}.`
       : cashed
         ? `Tu as encaissé ${money(total)} après ${tiers} palier${plural}.`
-        : secured > 0
-          ? `Tu avais ${money(lostStake)} en jeu. Ta mise de départ était déjà récupérée : tu ne perds rien.`
+        : stakeRecovered(run.steps)
+          ? `Tu avais ${money(lostStake)} en jeu. Ta mise de départ était déjà récupérée : tu gardes ${money(secured)}.`
+          : secured > 0
+            ? `Tu avais ${money(lostStake)} en jeu. Il te reste ${money(secured)} mis de côté.`
           : `Tu avais ${money(lostStake)} en jeu. La mise perdue reste ta mise de départ : ${money(settings.stake)}.`;
 
     el.endFinal.textContent = net > 0 ? `+${money(net)}` : net < 0 ? `−${money(-net)}` : money(0);
@@ -503,6 +527,7 @@
       run.secured = round2((run.secured || 0) - last.amount);
     } else {
       run.bankroll = last.stake;
+      run.secured = round2((run.secured || 0) - (last.withheld || 0));
       run.pending = { odds: last.odds };
     }
     save();
@@ -537,8 +562,10 @@
     const o = run.pending.odds;
     const stake = run.bankroll;
     const payout = round2(stake * o);
-    run.steps.push({ kind: 'win', n: tierCount(run.steps) + 1, stake, odds: o, payout });
-    run.bankroll = payout;
+    const withheld = withheldFor(stake, payout);
+    run.steps.push({ kind: 'win', n: tierCount(run.steps) + 1, stake, odds: o, payout, withheld });
+    run.bankroll = round2(payout - withheld);
+    run.secured = round2((run.secured || 0) + withheld);
     run.pending = null;
     afterTierSettled();
   }
@@ -571,8 +598,10 @@
     }
     const stake = run.bankroll;
     const payout = round2(amount);
-    run.steps.push({ kind: 'cashout', n: tierCount(run.steps) + 1, stake, odds: run.pending.odds, payout });
-    run.bankroll = payout;
+    const withheld = withheldFor(stake, payout);
+    run.steps.push({ kind: 'cashout', n: tierCount(run.steps) + 1, stake, odds: run.pending.odds, payout, withheld });
+    run.bankroll = round2(payout - withheld);
+    run.secured = round2((run.secured || 0) + withheld);
     run.pending = null;
     afterTierSettled();
   }
@@ -580,10 +609,10 @@
   /** Met de côté la mise de départ, une fois par tentative, dès que le montant en jeu la dépasse. */
   function onSecure() {
     const { run, settings } = state;
-    if (run.pending || run.secured > 0 || !(run.bankroll > settings.stake)) return;
+    if (run.pending || stakeRecovered(run.steps) || !(run.bankroll > settings.stake)) return;
     const amount = settings.stake;
     run.bankroll = round2(run.bankroll - amount);
-    run.secured = amount;
+    run.secured = round2((run.secured || 0) + amount);
     run.steps.push({ kind: 'secure', amount });
     save();
     renderPlay();

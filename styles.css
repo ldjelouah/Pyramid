@@ -393,6 +393,7 @@ button { font: inherit; color: inherit; }
 .btn-link-sm { font-size: 13px; padding: 4px 0; align-self: auto; }
 .pending-head { gap: 12px; }
 .pending-title { white-space: nowrap; }
+.pending-head .btn-link-sm { white-space: nowrap; }
 #btn-cashout { color: var(--gold); font-weight: 700; }
 .pending-card .hint[hidden] { display: none; }
 
@@ -425,6 +426,30 @@ button { font: inherit; color: inherit; }
 }
 .secured-line strong { color: var(--gold); }
 .secured-line[hidden] { display: none; }
+
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(245, 181, 63, 0.10);
+  border: 1px solid rgba(245, 181, 63, 0.25);
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.notice svg { flex: none; margin-top: 1px; color: var(--gold); }
+.notice strong { color: var(--text); }
+.notice-sm { padding: 8px 10px; font-size: 12px; }
+.withheld-hint { color: var(--gold); font-size: 13px; font-variant-numeric: tabular-nums; }
+.withheld-hint:empty { display: none; }
+.history-list .step-withheld {
+  display: block;
+  font-size: 11px;
+  color: var(--gold);
+  margin-top: 1px;
+}
 .actions-place { grid-template-columns: 1fr; }
 .actions[hidden] { display: none; }
 
