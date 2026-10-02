@@ -42,6 +42,10 @@
     history: [],
     // Garde-fou : pertes mesurées depuis `since`, pause active jusqu'à `pausedUntil`.
     guard: { since: 0, pausedUntil: null },
+    // 'home' : l'utilisateur a quitté l'écran de partie avec la flèche, la partie reste en cours.
+    view: 'auto',
+    // Dernière partie abandonnée, restaurable jusqu'au démarrage de la suivante.
+    abandoned: null,
   });
 
   const PAUSE_MS = 24 * 60 * 60 * 1000;
@@ -60,6 +64,8 @@
         attempts: { ...base.attempts, ...(parsed.attempts || {}) },
         history: Array.isArray(parsed.history) ? parsed.history : [],
         guard: { ...base.guard, ...(parsed.guard || {}) },
+        view: parsed.view === 'home' ? 'home' : 'auto',
+        abandoned: parsed.abandoned && parsed.abandoned.run ? parsed.abandoned : null,
       };
     } catch {
       return defaultState();
@@ -117,6 +123,13 @@
     setupAttemptsList: $('setup-attempts-list'),
     // play
     btnQuit: $('btn-quit'),
+    resumeCard: $('resume-card'),
+    resumeKicker: $('resume-kicker'),
+    resumeAmount: $('resume-amount'),
+    resumeDetail: $('resume-detail'),
+    btnContinue: $('btn-continue'),
+    btnAbandon: $('btn-abandon'),
+    btnRestore: $('btn-restore'),
     playStep: $('play-step'),
     playAttempt: $('play-attempt'),
     playCard: $('play-card'),
@@ -290,7 +303,7 @@
   function renderPause() {
     const paused = isPaused();
     el.pauseCard.hidden = !paused;
-    el.setupForm.hidden = paused;
+    el.setupForm.hidden = paused || state.run.status === 'playing';
     if (pauseTimer) { clearInterval(pauseTimer); pauseTimer = null; }
     if (!paused) return;
     const { guard, settings } = state;
@@ -307,6 +320,38 @@
     pauseTimer = setInterval(tick, 30000);
   }
 
+  // ---------- Partie en cours vue depuis l'accueil ----------
+  let abandonTimers = [];
+  function resetAbandon() {
+    abandonTimers.forEach(clearTimeout);
+    abandonTimers = [];
+    el.btnAbandon.classList.remove('btn-danger-confirm');
+    el.btnAbandon.disabled = false;
+    el.btnAbandon.textContent = 'Abandonner cette partie';
+    el.btnAbandon.dataset.armed = '';
+  }
+
+  function renderResume() {
+    const { run, abandoned } = state;
+    const playing = run.status === 'playing';
+    el.resumeCard.hidden = !playing;
+    resetAbandon();
+    if (playing) {
+      const tiers = tierCount(run.steps);
+      el.resumeKicker.textContent = `Partie en cours · Palier ${tiers + 1} · Tentative ${run.attempt}`;
+      el.resumeAmount.textContent = money(run.bankroll);
+      const bits = [];
+      if (run.pending) bits.push(`Pari en cours à la cote ${odds(run.pending.odds)}`);
+      if (run.secured > 0) bits.push(`${money(run.secured)} sécurisés`);
+      el.resumeDetail.textContent = bits.join(' · ');
+    }
+    el.btnRestore.hidden = !abandoned || playing;
+    if (abandoned && !playing) {
+      const r = abandoned.run;
+      el.btnRestore.textContent = `Restaurer la partie abandonnée (palier ${tierCount(r.steps) + 1}, ${money(r.bankroll)} en jeu)`;
+    }
+  }
+
   // ---------- Rendu ----------
   function showScreen(name) {
     document.querySelectorAll('.confetti').forEach((n) => n.remove());
@@ -319,7 +364,7 @@
   function render() {
     expirePause();
     const { run } = state;
-    if (run.status === 'playing') {
+    if (run.status === 'playing' && state.view !== 'home') {
       renderPlay();
       showScreen('play');
     } else if (run.status === 'won' || run.status === 'lost' || run.status === 'cashed') {
@@ -338,6 +383,7 @@
     if (settings.lossCap != null && !el.inputLossCap.value) el.inputLossCap.value = String(settings.lossCap).replace('.', ',');
     updateSetupHint();
     renderPause();
+    renderResume();
     renderBalance();
 
     const hasHistory = attempts.total > 0;
@@ -613,6 +659,8 @@
       pending: null,
       secured: 0,
     };
+    state.view = 'auto';
+    state.abandoned = null;
     el.inputOdds.value = '';
     save();
     render();
@@ -820,6 +868,7 @@
 
   function onEdit() {
     state.run = defaultState().run;
+    state.view = 'auto';
     el.inputStake.value = '';
     el.inputTarget.value = '';
     el.inputLossCap.value = '';
@@ -827,12 +876,63 @@
     render();
   }
 
-  function onQuit() {
-    // Abandonner la partie en cours : elle ne compte ni gagnée ni perdue.
-    const started = state.run.steps.length > 0 || !!state.run.pending;
-    if (started && !window.confirm('Quitter la partie en cours ? Elle ne sera pas comptée.')) return;
+  /** Flèche retour : on revient à l'accueil, la partie reste en cours. */
+  function onBack() {
+    state.view = 'home';
+    save();
+    render();
+  }
+
+  function onContinue() {
+    state.view = 'auto';
+    save();
+    render();
+  }
+
+  /** Abandon en deux temps : premier appui arme un bouton rouge, inactif 2 s puis actif 8 s. */
+  function onAbandon() {
+    const btn = el.btnAbandon;
+    if (btn.dataset.armed !== 'ready') {
+      if (btn.dataset.armed === 'arming') return;
+      btn.dataset.armed = 'arming';
+      btn.classList.add('btn-danger-confirm');
+      btn.disabled = true;
+      let left = 2;
+      btn.textContent = `Confirmer l'abandon (${left})`;
+      const tick = () => {
+        left -= 1;
+        if (left > 0) {
+          btn.textContent = `Confirmer l'abandon (${left})`;
+          abandonTimers.push(setTimeout(tick, 1000));
+        } else {
+          btn.textContent = "Confirmer l'abandon";
+          btn.disabled = false;
+          btn.dataset.armed = 'ready';
+          abandonTimers.push(setTimeout(resetAbandon, 8000));
+        }
+      };
+      abandonTimers.push(setTimeout(tick, 1000));
+      return;
+    }
+    // Abandon confirmé : la partie ne compte ni gagnée ni perdue, mais reste restaurable.
+    const { run } = state;
+    state.abandoned = { run: JSON.parse(JSON.stringify(run)), attemptsTotalBefore: state.attempts.total, at: Date.now() };
     state.attempts.total = Math.max(0, state.attempts.total - 1);
-    onEdit();
+    state.run = defaultState().run;
+    state.view = 'auto';
+    save();
+    render();
+  }
+
+  function onRestore() {
+    const { abandoned } = state;
+    if (!abandoned || state.run.status === 'playing') return;
+    state.run = abandoned.run;
+    state.attempts.total = abandoned.attemptsTotalBefore;
+    state.abandoned = null;
+    state.view = 'home';
+    save();
+    render();
   }
 
   function onReset() {
@@ -891,7 +991,10 @@
   el.cashoutForm.addEventListener('submit', onCashoutSubmit);
   el.btnWin.addEventListener('click', onWin);
   el.btnLose.addEventListener('click', onLose);
-  el.btnQuit.addEventListener('click', onQuit);
+  el.btnQuit.addEventListener('click', onBack);
+  el.btnContinue.addEventListener('click', onContinue);
+  el.btnAbandon.addEventListener('click', onAbandon);
+  el.btnRestore.addEventListener('click', onRestore);
   el.btnReplay.addEventListener('click', onReplay);
   el.btnEdit.addEventListener('click', onEdit);
 

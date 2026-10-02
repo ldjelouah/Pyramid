@@ -15,6 +15,9 @@ ton objectif.
 - **Cashout** enregistre le montant proposé par le bookmaker pour solder le pari en cours. Ce
   montant devient la mise du palier suivant.
 - **Encaisser** arrête la série avant l'objectif et garde le total obtenu.
+- La flèche retour de l'écran de partie ramène à l'accueil **sans rien perdre** : la partie
+  reste en cours et se reprend d'un bouton. Abandonner demande une confirmation en deux temps, et
+  la dernière partie abandonnée peut être restaurée tant qu'une nouvelle n'a pas démarré.
 - Chaque tentative terminée est archivée dans **Tentatives précédentes**, avec le détail de ses
   paliers, pour revoir jusqu'où tu es allé.
 - L'app calcule le montant à rejouer, la progression vers l'objectif, l'historique des paliers et
