@@ -22,6 +22,14 @@ ton objectif.
 
 Zéro dépendance, zéro build : du HTML, du CSS et du JavaScript.
 
+## Garde-fous
+
+- **Bilan global** sur l'écran d'accueil : résultat net de toutes les tentatives archivées, total
+  misé, perdu, gagné ou encaissé, mis de côté.
+- **Plafond de perte** (optionnel) : quand tes pertes cumulées atteignent ce montant, l'app
+  affiche un écran de pause avec le bilan et propose d'attendre 24 h. Un lien discret permet de
+  relancer quand même, après confirmation. Le compteur de pertes repart de zéro après la pause.
+
 ## Lancer sur ton téléphone
 
 ### 1. Publication automatique sur GitHub Pages

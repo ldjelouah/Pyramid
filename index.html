@@ -54,11 +54,44 @@
             <span class="unit">€</span>
           </span>
         </label>
+        <label class="field">
+          <span class="field-label">Plafond de perte <em class="field-opt">optionnel</em></span>
+          <span class="field-input">
+            <input id="input-losscap" name="losscap" type="text" inputmode="decimal" placeholder="Aucun" autocomplete="off">
+            <span class="unit">€</span>
+          </span>
+          <span class="field-help">Quand tes pertes cumulées atteignent ce montant, l'app te propose une pause de 24 h.</span>
+        </label>
         <p id="setup-error" class="error" role="alert" hidden></p>
         <p id="setup-hint" class="hint">Soit un multiplicateur de <strong id="setup-mult">×10</strong> à atteindre.</p>
         <p class="notice"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span>Après chaque gain, <strong>5 % du bénéfice</strong> est mis de côté automatiquement. Le reste est rejoué au palier suivant.</span></p>
         <button type="submit" class="btn btn-primary">Commencer</button>
       </form>
+
+      <section class="card pause-card" id="pause-card" hidden>
+        <div class="pause-hero">
+          <div class="end-badge pause-badge" aria-hidden="true">⏸</div>
+          <h2 class="pause-title">Plafond de perte atteint</h2>
+          <p class="pause-sub" id="pause-sub"></p>
+        </div>
+        <p class="pause-countdown">Reprise possible dans <strong id="pause-remaining">—</strong></p>
+        <p class="hint">Prends le temps de regarder le bilan ci-dessous avant de décider quoi que ce soit.</p>
+        <button id="btn-resume" type="button" class="btn-link">Relancer quand même</button>
+      </section>
+
+      <section class="card end-card balance-card" id="balance-card" hidden>
+        <h2 class="section-title balance-title">Bilan global</h2>
+        <div class="end-row balance-net"><span>Résultat net</span><strong id="balance-net">0,00 €</strong></div>
+        <div class="end-row"><span id="balance-count-label">Tentatives</span><strong id="balance-count">0</strong></div>
+        <div class="end-row"><span>Total misé</span><strong id="balance-staked">0,00 €</strong></div>
+        <div class="end-row"><span>Perdu</span><strong id="balance-lost" class="neg">0,00 €</strong></div>
+        <div class="end-row"><span>Gagné ou encaissé</span><strong id="balance-gained" class="pos">0,00 €</strong></div>
+        <div class="end-row"><span>Mis de côté</span><strong id="balance-secured">0,00 €</strong></div>
+        <div class="cap-block" id="cap-block" hidden>
+          <div class="cap-meta"><span>Pertes depuis la dernière pause</span><strong id="cap-progress-text">0 € / 0 €</strong></div>
+          <div class="progress progress-thin" id="cap-progress"><div class="progress-bar" id="cap-progress-bar"></div></div>
+        </div>
+      </section>
 
       <section id="setup-stats" class="stats" hidden>
         <div class="stat"><span class="stat-value" id="stat-attempts">0</span><span class="stat-label">tentatives</span></div>
@@ -199,6 +232,8 @@
         <div class="stat"><span class="stat-value stat-gold" id="end-cashed">0</span><span class="stat-label">encaissées</span></div>
       </section>
 
+      <p class="error cap-banner" id="end-cap-banner" hidden></p>
+
       <section class="attempts" id="end-attempts-history" hidden>
         <h2 class="section-title">Tentatives précédentes</h2>
         <div class="attempts-list" id="end-attempts-history-list"></div>
@@ -207,6 +242,7 @@
       <div class="actions">
         <button id="btn-edit" type="button" class="btn btn-secondary">Modifier</button>
         <button id="btn-replay" type="button" class="btn btn-primary">Rejouer</button>
+        <button id="btn-see-balance" type="button" class="btn btn-lose" hidden>Voir le bilan</button>
       </div>
     </section>
 

@@ -36,11 +36,15 @@
 
   // ---------- État ----------
   const defaultState = () => ({
-    settings: { stake: null, target: null },
+    settings: { stake: null, target: null, lossCap: null },
     run: { status: 'idle', bankroll: 0, steps: [], attempt: 0, lostAt: null, pending: null, secured: 0 },
     attempts: { total: 0, won: 0, lost: 0, cashed: 0 },
     history: [],
+    // Garde-fou : pertes mesurées depuis `since`, pause active jusqu'à `pausedUntil`.
+    guard: { since: 0, pausedUntil: null },
   });
+
+  const PAUSE_MS = 24 * 60 * 60 * 1000;
 
   let state = load();
 
@@ -55,6 +59,7 @@
         run: { ...base.run, ...(parsed.run || {}) },
         attempts: { ...base.attempts, ...(parsed.attempts || {}) },
         history: Array.isArray(parsed.history) ? parsed.history : [],
+        guard: { ...base.guard, ...(parsed.guard || {}) },
       };
     } catch {
       return defaultState();
@@ -85,6 +90,25 @@
     setupHint: $('setup-hint'),
     setupMult: $('setup-mult'),
     setupStats: $('setup-stats'),
+    inputLossCap: $('input-losscap'),
+    pauseCard: $('pause-card'),
+    pauseSub: $('pause-sub'),
+    pauseRemaining: $('pause-remaining'),
+    btnResume: $('btn-resume'),
+    balanceCard: $('balance-card'),
+    balanceNet: $('balance-net'),
+    balanceCount: $('balance-count'),
+    balanceCountLabel: $('balance-count-label'),
+    balanceStaked: $('balance-staked'),
+    balanceLost: $('balance-lost'),
+    balanceGained: $('balance-gained'),
+    balanceSecured: $('balance-secured'),
+    capBlock: $('cap-block'),
+    capProgress: $('cap-progress'),
+    capProgressBar: $('cap-progress-bar'),
+    capProgressText: $('cap-progress-text'),
+    endCapBanner: $('end-cap-banner'),
+    btnSeeBalance: $('btn-see-balance'),
     statAttempts: $('stat-attempts'),
     statWon: $('stat-won'),
     statLost: $('stat-lost'),
@@ -165,6 +189,124 @@
     return Math.max(0, Math.min(100, pct));
   }
 
+  // ---------- Bilan global et garde-fou ----------
+  /** Résultat net d'une tentative archivée : ce qu'on a en plus ou en moins par rapport à la mise. */
+  function netOf(entry) {
+    const secured = entry.secured || 0;
+    if (entry.status === 'lost') return round2(secured - entry.stake);
+    return round2(entry.finalBankroll + secured - entry.stake);
+  }
+
+  function summarize(entries) {
+    const sum = { count: entries.length, staked: 0, lost: 0, gained: 0, secured: 0, net: 0 };
+    entries.forEach((e) => {
+      const net = netOf(e);
+      sum.staked += e.stake;
+      sum.secured += e.secured || 0;
+      sum.net += net;
+      if (net < 0) sum.lost += -net; else sum.gained += net;
+    });
+    Object.keys(sum).forEach((k) => { if (k !== 'count') sum[k] = round2(sum[k]); });
+    return sum;
+  }
+
+  /** Perte nette cumulée depuis une date (0 si le solde est positif). */
+  function lossSince(ts) {
+    const net = state.history.filter((e) => (e.endedAt || 0) >= ts).reduce((acc, e) => acc + netOf(e), 0);
+    return net < 0 ? round2(-net) : 0;
+  }
+
+  const isPaused = () => state.guard.pausedUntil != null && state.guard.pausedUntil > Date.now();
+
+  /** Lève une pause expirée et réarme le compteur de pertes. */
+  function expirePause() {
+    const { guard } = state;
+    if (guard.pausedUntil != null && guard.pausedUntil <= Date.now()) {
+      guard.pausedUntil = null;
+      guard.since = Date.now();
+      save();
+    }
+  }
+
+  /** Déclenche la pause si le plafond de perte vient d'être atteint. Renvoie true si c'est le cas. */
+  function checkLossCap() {
+    const cap = state.settings.lossCap;
+    if (!(cap > 0) || isPaused()) return false;
+    if (lossSince(state.guard.since) >= cap) {
+      state.guard.pausedUntil = Date.now() + PAUSE_MS;
+      return true;
+    }
+    return false;
+  }
+
+  function formatRemaining(ms) {
+    const totalMin = Math.max(1, Math.ceil(ms / 60000));
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    if (h === 0) return `${m} min`;
+    return `${h} h ${String(m).padStart(2, '0')} min`;
+  }
+
+  const fmtDate = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long' });
+
+  function signedMoney(n) {
+    if (n > 0) return `+${money(n)}`;
+    if (n < 0) return `−${money(-n)}`;
+    return money(0);
+  }
+
+  function setSignClass(node, n) {
+    node.classList.toggle('pos', n > 0);
+    node.classList.toggle('neg', n < 0);
+    node.classList.toggle('zero', n === 0);
+  }
+
+  function renderBalance() {
+    const { history, settings, guard, attempts } = state;
+    el.balanceCard.hidden = history.length === 0;
+    if (history.length === 0) return;
+    const sum = summarize(history);
+    el.balanceNet.textContent = signedMoney(sum.net);
+    setSignClass(el.balanceNet, sum.net);
+    el.balanceCount.textContent = sum.count;
+    el.balanceCountLabel.textContent = attempts.total > sum.count ? 'Tentatives (avec montants connus)' : 'Tentatives';
+    el.balanceStaked.textContent = money(sum.staked);
+    el.balanceLost.textContent = sum.lost > 0 ? `−${money(sum.lost)}` : money(0);
+    el.balanceGained.textContent = sum.gained > 0 ? `+${money(sum.gained)}` : money(0);
+    el.balanceSecured.textContent = money(sum.secured);
+
+    const cap = settings.lossCap;
+    el.capBlock.hidden = !(cap > 0);
+    if (cap > 0) {
+      const loss = lossSince(guard.since);
+      const pct = Math.max(0, Math.min(100, (loss / cap) * 100));
+      el.capProgressText.textContent = `${money(loss)} / ${money(cap)}`;
+      el.capProgressBar.style.width = `${pct}%`;
+      el.capProgress.classList.toggle('progress-danger', pct >= 80);
+    }
+  }
+
+  let pauseTimer = null;
+  function renderPause() {
+    const paused = isPaused();
+    el.pauseCard.hidden = !paused;
+    el.setupForm.hidden = paused;
+    if (pauseTimer) { clearInterval(pauseTimer); pauseTimer = null; }
+    if (!paused) return;
+    const { guard, settings } = state;
+    const since = state.history.filter((e) => (e.endedAt || 0) >= guard.since);
+    const sum = summarize(since);
+    const from = since.length ? fmtDate.format(new Date(Math.min(...since.map((e) => e.endedAt)))) : '';
+    el.pauseSub.textContent = `Tu as perdu ${money(sum.lost - sum.gained)} sur ${sum.count} tentative${sum.count > 1 ? 's' : ''}` +
+      (from ? ` depuis le ${from}` : '') + `, pour un plafond de ${money(settings.lossCap)}.`;
+    const tick = () => {
+      if (!isPaused()) { expirePause(); render(); return; }
+      el.pauseRemaining.textContent = formatRemaining(guard.pausedUntil - Date.now());
+    };
+    tick();
+    pauseTimer = setInterval(tick, 30000);
+  }
+
   // ---------- Rendu ----------
   function showScreen(name) {
     document.querySelectorAll('.confetti').forEach((n) => n.remove());
@@ -175,6 +317,7 @@
   }
 
   function render() {
+    expirePause();
     const { run } = state;
     if (run.status === 'playing') {
       renderPlay();
@@ -192,7 +335,10 @@
     const { settings, attempts } = state;
     if (settings.stake != null && !el.inputStake.value) el.inputStake.value = String(settings.stake).replace('.', ',');
     if (settings.target != null && !el.inputTarget.value) el.inputTarget.value = String(settings.target).replace('.', ',');
+    if (settings.lossCap != null && !el.inputLossCap.value) el.inputLossCap.value = String(settings.lossCap).replace('.', ',');
     updateSetupHint();
+    renderPause();
+    renderBalance();
 
     const hasHistory = attempts.total > 0;
     el.setupStats.hidden = !hasHistory;
@@ -356,6 +502,7 @@
       endedAt: Date.now(),
     });
     if (state.history.length > MAX_HISTORY) state.history.length = MAX_HISTORY;
+    checkLossCap();
   }
 
   const CHEVRON = '<svg class="attempt-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
@@ -440,6 +587,14 @@
     el.endWon.textContent = attempts.won;
     el.endLost.textContent = attempts.lost;
     el.endCashed.textContent = attempts.cashed;
+    const paused = isPaused();
+    el.endCapBanner.hidden = !paused;
+    el.btnReplay.hidden = paused;
+    el.btnSeeBalance.hidden = !paused;
+    if (paused) {
+      const loss = lossSince(state.guard.since);
+      el.endCapBanner.textContent = `Plafond de perte atteint : −${money(loss)} depuis la dernière pause. Pause de 24 h proposée.`;
+    }
     renderAttempts(el.endAttemptsList, el.endAttempts2, state.history);
 
     if (won) confetti();
@@ -469,17 +624,20 @@
     event.preventDefault();
     const stake = parseNum(el.inputStake.value);
     const target = parseNum(el.inputTarget.value);
+    const capRaw = el.inputLossCap.value.trim();
+    const cap = capRaw === '' ? null : parseNum(capRaw);
     let error = '';
     if (!(stake > 0)) error = 'Indique une mise de départ valide (supérieure à 0).';
     else if (!(target > 0)) error = 'Indique un objectif valide.';
     else if (target <= stake) error = "L'objectif doit être supérieur à la mise de départ.";
+    else if (cap !== null && !(cap > 0)) error = 'Le plafond de perte doit être supérieur à 0, ou laissé vide.';
     if (error) {
       el.setupError.textContent = error;
       el.setupError.hidden = false;
       return;
     }
     el.setupError.hidden = true;
-    state.settings = { stake: round2(stake), target: round2(target) };
+    state.settings = { stake: round2(stake), target: round2(target), lossCap: cap === null ? null : round2(cap) };
     startRun();
   }
 
@@ -646,13 +804,25 @@
   }
 
   function onReplay() {
+    if (isPaused()) { onEdit(); return; }
     startRun();
+  }
+
+  /** Lève la pause avant son terme, après confirmation, et réarme le compteur de pertes. */
+  function onResume() {
+    const loss = lossSince(state.guard.since);
+    if (!window.confirm(`Tu as perdu ${money(loss)} depuis la dernière pause. Relancer quand même ?`)) return;
+    state.guard.pausedUntil = null;
+    state.guard.since = Date.now();
+    save();
+    render();
   }
 
   function onEdit() {
     state.run = defaultState().run;
     el.inputStake.value = '';
     el.inputTarget.value = '';
+    el.inputLossCap.value = '';
     save();
     render();
   }
@@ -670,6 +840,7 @@
     state = defaultState();
     el.inputStake.value = '';
     el.inputTarget.value = '';
+    el.inputLossCap.value = '';
     try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
     render();
   }
@@ -697,6 +868,8 @@
   el.inputStake.addEventListener('input', updateSetupHint);
   el.inputTarget.addEventListener('input', updateSetupHint);
   el.btnReset.addEventListener('click', onReset);
+  el.btnResume.addEventListener('click', onResume);
+  el.btnSeeBalance.addEventListener('click', onEdit);
 
   el.inputOdds.addEventListener('input', updatePayout);
   el.inputOdds.addEventListener('keydown', (e) => {
