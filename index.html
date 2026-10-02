@@ -68,6 +68,16 @@
         <button type="submit" class="btn btn-primary">Commencer</button>
       </form>
 
+      <section class="card card-main resume-card" id="resume-card" hidden>
+        <p class="card-kicker" id="resume-kicker">Partie en cours · Palier 1 · Tentative 1</p>
+        <p class="amount amount-sm" id="resume-amount">10,00 €</p>
+        <p class="hint resume-detail" id="resume-detail"></p>
+        <button id="btn-continue" type="button" class="btn btn-primary">Reprendre</button>
+        <button id="btn-abandon" type="button" class="btn-link">Abandonner cette partie</button>
+      </section>
+
+      <button id="btn-restore" type="button" class="btn-link restore-link" hidden>Restaurer la partie abandonnée</button>
+
       <section class="card pause-card" id="pause-card" hidden>
         <div class="pause-hero">
           <div class="end-badge pause-badge" aria-hidden="true">⏸</div>
@@ -111,7 +121,7 @@
     <!-- ÉCRAN 2 : PARTIE EN COURS -->
     <section id="screen-play" class="screen" data-screen="play" hidden>
       <header class="topbar">
-        <button id="btn-quit" type="button" class="btn-icon" aria-label="Retour aux paramètres">
+        <button id="btn-quit" type="button" class="btn-icon" aria-label="Retour à l'accueil, la partie reste en cours">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
         </button>
         <span class="topbar-title">Palier <strong id="play-step">1</strong></span>

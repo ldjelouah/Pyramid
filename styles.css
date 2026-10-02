@@ -613,6 +613,27 @@ button { font: inherit; color: inherit; }
 #end-final.zero { color: var(--text); }
 .end-row[hidden] { display: none; }
 
+/* ---------- Resume card & abandon ---------- */
+.resume-card { display: flex; flex-direction: column; gap: 10px; padding: 20px 18px 14px; }
+.resume-card[hidden] { display: none; }
+.amount-sm { font-size: clamp(32px, 9vw, 40px); margin-top: 0; }
+.resume-detail { min-height: 1em; }
+.resume-detail:empty { display: none; }
+.resume-card .btn-primary { margin-top: 6px; }
+.resume-card .btn-link { padding: 6px; color: var(--text-3); }
+.btn-link.btn-danger-confirm {
+  text-decoration: none;
+  color: #fff;
+  background: linear-gradient(135deg, var(--lose), var(--lose-2));
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.btn-link.btn-danger-confirm:disabled { opacity: 0.55; cursor: default; }
+.restore-link { align-self: center; color: var(--gold); }
+.restore-link[hidden] { display: none; }
+
 /* ---------- Balance & loss cap ---------- */
 .balance-card { padding-top: 14px; }
 .balance-card[hidden] { display: none; }
