@@ -5,7 +5,8 @@
 (() => {
   'use strict';
 
-  const STORAGE_KEY = 'pyramid:v1';
+  const STORAGE_KEY = 'pyramid:v2';
+  const LEGACY_KEY = 'pyramid:v1';
 
   const fmtMoney = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
   const fmtOdds = new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -35,7 +36,13 @@
   };
 
   // ---------- État ----------
-  const defaultState = () => ({
+  const newId = () => `l_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+
+  /** Une montante : paramètres, partie en cours, compteurs, historique, garde-fou. */
+  const defaultLadder = (name) => ({
+    id: newId(),
+    name,
+    createdAt: Date.now(),
     settings: { stake: null, target: null, lossCap: null },
     run: { status: 'idle', bankroll: 0, steps: [], attempt: 0, lostAt: null, pending: null, secured: 0 },
     attempts: { total: 0, won: 0, lost: 0, cashed: 0 },
@@ -50,31 +57,61 @@
 
   const PAUSE_MS = 24 * 60 * 60 * 1000;
 
-  let state = load();
+  /** Fusionne une montante stockée avec les valeurs par défaut (anciens champs absents). */
+  function normalizeLadder(parsed, fallbackName) {
+    const base = defaultLadder(fallbackName);
+    return {
+      id: typeof parsed.id === 'string' && parsed.id ? parsed.id : base.id,
+      name: typeof parsed.name === 'string' && parsed.name.trim() ? parsed.name.trim().slice(0, 24) : fallbackName,
+      createdAt: parsed.createdAt || base.createdAt,
+      settings: { ...base.settings, ...(parsed.settings || {}) },
+      run: { ...base.run, ...(parsed.run || {}) },
+      attempts: { ...base.attempts, ...(parsed.attempts || {}) },
+      history: Array.isArray(parsed.history) ? parsed.history : [],
+      guard: { ...base.guard, ...(parsed.guard || {}) },
+      view: parsed.view === 'home' ? 'home' : 'auto',
+      abandoned: parsed.abandoned && parsed.abandoned.run ? parsed.abandoned : null,
+    };
+  }
+
+  /** Racine : toutes les montantes et celle qui est affichée. */
+  let root = load();
+  /** La montante active. Tout le reste du code lit et écrit `state`. */
+  let state = activeLadder();
+  // Persiste tout de suite le format courant (utile juste après une migration depuis v1).
+  save();
+
+  function activeLadder() {
+    let found = root.ladders.find((l) => l.id === root.activeId);
+    if (!found) { found = root.ladders[0]; root.activeId = found.id; }
+    return found;
+  }
 
   function load() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return defaultState();
-      const parsed = JSON.parse(raw);
-      const base = defaultState();
-      return {
-        settings: { ...base.settings, ...(parsed.settings || {}) },
-        run: { ...base.run, ...(parsed.run || {}) },
-        attempts: { ...base.attempts, ...(parsed.attempts || {}) },
-        history: Array.isArray(parsed.history) ? parsed.history : [],
-        guard: { ...base.guard, ...(parsed.guard || {}) },
-        view: parsed.view === 'home' ? 'home' : 'auto',
-        abandoned: parsed.abandoned && parsed.abandoned.run ? parsed.abandoned : null,
-      };
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const ladders = (Array.isArray(parsed.ladders) ? parsed.ladders : [])
+          .map((l, i) => normalizeLadder(l, `Montante ${i + 1}`));
+        if (ladders.length > 0) return { activeId: parsed.activeId, ladders };
+      }
+      // Migration depuis l'ancien format à une seule montante. La clé v1 est laissée en place.
+      const legacy = localStorage.getItem(LEGACY_KEY);
+      if (legacy) {
+        const ladder = normalizeLadder(JSON.parse(legacy), 'Bet365');
+        return { activeId: ladder.id, ladders: [ladder] };
+      }
     } catch {
-      return defaultState();
+      /* état illisible : on repart de zéro */
     }
+    const ladder = defaultLadder('Montante 1');
+    return { activeId: ladder.id, ladders: [ladder] };
   }
 
   function save() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(root));
     } catch {
       /* stockage indisponible (navigation privée) : on continue en mémoire */
     }
@@ -119,6 +156,18 @@
     statWon: $('stat-won'),
     statLost: $('stat-lost'),
     btnReset: $('btn-reset'),
+    ladderTabs: $('ladder-tabs'),
+    ladderActions: $('ladder-actions'),
+    btnRename: $('btn-rename'),
+    btnDelete: $('btn-delete'),
+    ladderForm: $('ladder-form'),
+    ladderFormTitle: $('ladder-form-title'),
+    ladderSuggest: $('ladder-suggest'),
+    inputLadderName: $('input-ladder-name'),
+    ladderError: $('ladder-error'),
+    btnLadderCancel: $('btn-ladder-cancel'),
+    btnLadderSubmit: $('btn-ladder-submit'),
+    playLadder: $('play-ladder'),
     setupAttempts: $('setup-attempts'),
     setupAttemptsList: $('setup-attempts-list'),
     // play
@@ -320,15 +369,152 @@
     pauseTimer = setInterval(tick, 30000);
   }
 
+  // ---------- Confirmation en deux temps (abandon, suppression) ----------
+  /** Premier appui : bouton rouge inactif 2 s, puis actif 8 s. Second appui : onConfirm(). */
+  function twoStep(btn, idleLabel, confirmLabel, onConfirm) {
+    let timers = [];
+    const reset = () => {
+      timers.forEach(clearTimeout);
+      timers = [];
+      btn.classList.remove('btn-danger-confirm');
+      btn.disabled = false;
+      btn.textContent = idleLabel;
+      btn.dataset.armed = '';
+    };
+    const click = () => {
+      if (btn.dataset.armed === 'ready') { reset(); onConfirm(); return; }
+      if (btn.dataset.armed === 'arming') return;
+      btn.dataset.armed = 'arming';
+      btn.classList.add('btn-danger-confirm');
+      btn.disabled = true;
+      let left = 2;
+      btn.textContent = `${confirmLabel} (${left})`;
+      const tick = () => {
+        left -= 1;
+        if (left > 0) {
+          btn.textContent = `${confirmLabel} (${left})`;
+          timers.push(setTimeout(tick, 1000));
+        } else {
+          btn.textContent = confirmLabel;
+          btn.disabled = false;
+          btn.dataset.armed = 'ready';
+          timers.push(setTimeout(reset, 8000));
+        }
+      };
+      timers.push(setTimeout(tick, 1000));
+    };
+    return { click, reset };
+  }
+
+  // ---------- Montantes (sélecteur) ----------
+  const LADDER_NAME_MAX = 24;
+  let ladderFormMode = null; // null | 'create' | 'rename'
+
+  function ladderStatus(l) {
+    if (l.guard.pausedUntil != null && l.guard.pausedUntil > Date.now()) return 'paused';
+    if (l.run.status === 'playing') return l.run.pending ? 'pending' : 'playing';
+    return 'idle';
+  }
+
+  function renderLadderTabs() {
+    el.ladderTabs.innerHTML = '';
+    root.ladders.forEach((l) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = `ladder-tab${l.id === root.activeId ? ' active' : ''}`;
+      b.dataset.id = l.id;
+      b.innerHTML = `<span class="ladder-dot ${ladderStatus(l)}" aria-hidden="true"></span>${escapeHtml(l.name)}`;
+      b.setAttribute('aria-pressed', String(l.id === root.activeId));
+      el.ladderTabs.appendChild(b);
+    });
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'ladder-tab add';
+    add.dataset.action = 'add';
+    add.textContent = '+';
+    add.setAttribute('aria-label', 'Nouvelle montante');
+    el.ladderTabs.appendChild(add);
+
+    el.btnDelete.hidden = root.ladders.length <= 1;
+    el.ladderActions.hidden = ladderFormMode !== null;
+    el.ladderForm.hidden = ladderFormMode === null;
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function selectLadder(id) {
+    if (!root.ladders.some((l) => l.id === id)) return;
+    root.activeId = id;
+    state = activeLadder();
+    ladderFormMode = null;
+    el.inputStake.value = '';
+    el.inputTarget.value = '';
+    el.inputLossCap.value = '';
+    el.inputOdds.value = '';
+    save();
+    render();
+  }
+
+  function openLadderForm(mode) {
+    ladderFormMode = mode;
+    el.ladderFormTitle.textContent = mode === 'rename' ? 'Renommer la montante' : 'Nouvelle montante';
+    el.btnLadderSubmit.textContent = mode === 'rename' ? 'Renommer' : 'Créer';
+    el.inputLadderName.value = mode === 'rename' ? state.name : '';
+    el.ladderError.hidden = true;
+    el.ladderSuggest.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.name === el.inputLadderName.value));
+    renderLadderTabs();
+    setTimeout(() => el.inputLadderName.focus({ preventScroll: true }), 50);
+  }
+
+  function closeLadderForm() {
+    ladderFormMode = null;
+    renderLadderTabs();
+  }
+
+  function validLadderName(raw, excludeId) {
+    const name = String(raw || '').trim().replace(/\s+/g, ' ').slice(0, LADDER_NAME_MAX);
+    if (!name) return { error: 'Indique un nom pour cette montante.' };
+    const dup = root.ladders.some((l) => l.id !== excludeId && l.name.toLowerCase() === name.toLowerCase());
+    if (dup) return { error: `Une montante « ${name} » existe déjà.` };
+    return { name };
+  }
+
+  function onLadderSubmit(event) {
+    event.preventDefault();
+    const check = validLadderName(el.inputLadderName.value, ladderFormMode === 'rename' ? state.id : null);
+    if (check.error) {
+      el.ladderError.textContent = check.error;
+      el.ladderError.hidden = false;
+      return;
+    }
+    if (ladderFormMode === 'rename') {
+      state.name = check.name;
+      ladderFormMode = null;
+      save();
+      render();
+      return;
+    }
+    const ladder = defaultLadder(check.name);
+    root.ladders.push(ladder);
+    ladderFormMode = null;
+    selectLadder(ladder.id);
+  }
+
+  function onDeleteConfirmed() {
+    if (root.ladders.length <= 1) return;
+    const idx = root.ladders.findIndex((l) => l.id === state.id);
+    root.ladders.splice(idx, 1);
+    selectLadder(root.ladders[Math.max(0, idx - 1)].id);
+  }
+
   // ---------- Partie en cours vue depuis l'accueil ----------
-  let abandonTimers = [];
+  const abandonCtl = twoStep(el.btnAbandon, 'Abandonner cette partie', "Confirmer l'abandon", onAbandonConfirmed);
+  const deleteCtl = twoStep(el.btnDelete, 'Supprimer', 'Confirmer la suppression', onDeleteConfirmed);
   function resetAbandon() {
-    abandonTimers.forEach(clearTimeout);
-    abandonTimers = [];
-    el.btnAbandon.classList.remove('btn-danger-confirm');
-    el.btnAbandon.disabled = false;
-    el.btnAbandon.textContent = 'Abandonner cette partie';
-    el.btnAbandon.dataset.armed = '';
+    abandonCtl.reset();
+    deleteCtl.reset();
   }
 
   function renderResume() {
@@ -382,6 +568,7 @@
     if (settings.target != null && !el.inputTarget.value) el.inputTarget.value = String(settings.target).replace('.', ',');
     if (settings.lossCap != null && !el.inputLossCap.value) el.inputLossCap.value = String(settings.lossCap).replace('.', ',');
     updateSetupHint();
+    renderLadderTabs();
     renderPause();
     renderResume();
     renderBalance();
@@ -455,6 +642,7 @@
     const tiers = tierCount(run.steps);
     el.playStep.textContent = tiers + 1;
     el.playAttempt.textContent = `Tentative ${run.attempt}`;
+    el.playLadder.textContent = root.ladders.length > 1 ? `${state.name} · ` : '';
     el.playBankroll.textContent = money(run.bankroll);
     el.playStart.textContent = money(settings.stake);
     el.playTarget.textContent = money(settings.target);
@@ -605,7 +793,8 @@
       ? 'Objectif atteint'
       : cashed ? 'Série encaissée' : `Perdu au palier ${run.lostAt ? run.lostAt.n : tiers + 1}`;
     const lostStake = run.lostAt ? run.lostAt.stake : run.bankroll;
-    el.endSub.textContent = won
+    const prefix = root.ladders.length > 1 ? `${state.name} : ` : '';
+    el.endSub.textContent = prefix + (won
       ? `Tu es passé de ${money(settings.stake)} à ${money(total)} en ${tiers} palier${plural}.`
       : cashed
         ? `Tu as encaissé ${money(total)} après ${tiers} palier${plural}.`
@@ -613,7 +802,7 @@
           ? `Tu avais ${money(lostStake)} en jeu. Ta mise de départ était déjà récupérée : tu gardes ${money(secured)}.`
           : secured > 0
             ? `Tu avais ${money(lostStake)} en jeu. Il te reste ${money(secured)} mis de côté.`
-          : `Tu avais ${money(lostStake)} en jeu. La mise perdue reste ta mise de départ : ${money(settings.stake)}.`;
+          : `Tu avais ${money(lostStake)} en jeu. La mise perdue reste ta mise de départ : ${money(settings.stake)}.`);
 
     el.endFinal.textContent = net > 0 ? `+${money(net)}` : net < 0 ? `−${money(-net)}` : money(0);
     el.endFinal.classList.toggle('pos', net > 0);
@@ -867,7 +1056,7 @@
   }
 
   function onEdit() {
-    state.run = defaultState().run;
+    state.run = defaultLadder(state.name).run;
     state.view = 'auto';
     el.inputStake.value = '';
     el.inputTarget.value = '';
@@ -889,36 +1078,12 @@
     render();
   }
 
-  /** Abandon en deux temps : premier appui arme un bouton rouge, inactif 2 s puis actif 8 s. */
-  function onAbandon() {
-    const btn = el.btnAbandon;
-    if (btn.dataset.armed !== 'ready') {
-      if (btn.dataset.armed === 'arming') return;
-      btn.dataset.armed = 'arming';
-      btn.classList.add('btn-danger-confirm');
-      btn.disabled = true;
-      let left = 2;
-      btn.textContent = `Confirmer l'abandon (${left})`;
-      const tick = () => {
-        left -= 1;
-        if (left > 0) {
-          btn.textContent = `Confirmer l'abandon (${left})`;
-          abandonTimers.push(setTimeout(tick, 1000));
-        } else {
-          btn.textContent = "Confirmer l'abandon";
-          btn.disabled = false;
-          btn.dataset.armed = 'ready';
-          abandonTimers.push(setTimeout(resetAbandon, 8000));
-        }
-      };
-      abandonTimers.push(setTimeout(tick, 1000));
-      return;
-    }
-    // Abandon confirmé : la partie ne compte ni gagnée ni perdue, mais reste restaurable.
+  /** Abandon confirmé : la partie ne compte ni gagnée ni perdue, mais reste restaurable. */
+  function onAbandonConfirmed() {
     const { run } = state;
     state.abandoned = { run: JSON.parse(JSON.stringify(run)), attemptsTotalBefore: state.attempts.total, at: Date.now() };
     state.attempts.total = Math.max(0, state.attempts.total - 1);
-    state.run = defaultState().run;
+    state.run = defaultLadder(state.name).run;
     state.view = 'auto';
     save();
     render();
@@ -936,12 +1101,16 @@
   }
 
   function onReset() {
-    if (!window.confirm('Effacer les paramètres et toutes les statistiques ?')) return;
-    state = defaultState();
+    if (!window.confirm(`Effacer les paramètres et toutes les statistiques de « ${state.name} » ?`)) return;
+    const fresh = defaultLadder(state.name);
+    fresh.id = state.id;
+    fresh.createdAt = state.createdAt;
+    Object.keys(state).forEach((k) => { delete state[k]; });
+    Object.assign(state, fresh);
     el.inputStake.value = '';
     el.inputTarget.value = '';
     el.inputLossCap.value = '';
-    try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+    save();
     render();
   }
 
@@ -969,6 +1138,26 @@
   el.inputTarget.addEventListener('input', updateSetupHint);
   el.btnReset.addEventListener('click', onReset);
   el.btnResume.addEventListener('click', onResume);
+  el.ladderTabs.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    if (btn.dataset.action === 'add') { openLadderForm('create'); return; }
+    if (btn.dataset.id && btn.dataset.id !== root.activeId) selectLadder(btn.dataset.id);
+  });
+  el.btnRename.addEventListener('click', () => openLadderForm('rename'));
+  el.btnDelete.addEventListener('click', deleteCtl.click);
+  el.btnLadderCancel.addEventListener('click', closeLadderForm);
+  el.ladderForm.addEventListener('submit', onLadderSubmit);
+  el.ladderSuggest.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-name]');
+    if (!b) return;
+    el.inputLadderName.value = b.dataset.name;
+    el.ladderError.hidden = true;
+    el.ladderSuggest.querySelectorAll('button').forEach((x) => x.classList.toggle('active', x === b));
+  });
+  el.inputLadderName.addEventListener('input', () => {
+    el.ladderSuggest.querySelectorAll('button').forEach((x) => x.classList.toggle('active', x.dataset.name === el.inputLadderName.value));
+  });
   el.btnSeeBalance.addEventListener('click', onEdit);
 
   el.inputOdds.addEventListener('input', updatePayout);
@@ -993,7 +1182,7 @@
   el.btnLose.addEventListener('click', onLose);
   el.btnQuit.addEventListener('click', onBack);
   el.btnContinue.addEventListener('click', onContinue);
-  el.btnAbandon.addEventListener('click', onAbandon);
+  el.btnAbandon.addEventListener('click', abandonCtl.click);
   el.btnRestore.addEventListener('click', onRestore);
   el.btnReplay.addEventListener('click', onReplay);
   el.btnEdit.addEventListener('click', onEdit);
