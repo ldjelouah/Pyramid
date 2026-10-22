@@ -613,6 +613,59 @@ button { font: inherit; color: inherit; }
 #end-final.zero { color: var(--text); }
 .end-row[hidden] { display: none; }
 
+/* ---------- Ladder tabs (plusieurs montantes) ---------- */
+.ladder-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 2px 6px;
+  margin: 0 -2px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.ladder-tabs::-webkit-scrollbar { display: none; }
+.ladder-tab {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text-2);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.ladder-tab.active { border-color: var(--accent); background: rgba(139, 92, 246, 0.18); color: var(--text); }
+.ladder-tab.add { border-style: dashed; color: var(--text-3); padding: 10px 14px; font-size: 18px; line-height: 1; }
+.ladder-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); }
+.ladder-dot.playing { background: var(--accent-2); }
+.ladder-dot.pending { background: var(--gold); }
+.ladder-dot.paused { background: var(--lose); }
+.ladder-actions { display: flex; justify-content: center; gap: 18px; margin-top: -4px; }
+.ladder-actions[hidden] { display: none; }
+.ladder-actions .btn-link { color: var(--text-3); }
+.ladder-actions .btn-link[hidden] { display: none; }
+.ladder-form { display: flex; flex-direction: column; gap: 12px; }
+.ladder-form[hidden] { display: none; }
+.ladder-suggest { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.ladder-suggest button {
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 6px;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+}
+.ladder-suggest button.active { border-color: var(--accent); background: rgba(139, 92, 246, 0.18); }
+.ladder-form .field-input input { font-size: 18px; }
+.topbar-ladder { color: var(--text-3); font-weight: 600; }
+
 /* ---------- Resume card & abandon ---------- */
 .resume-card { display: flex; flex-direction: column; gap: 10px; padding: 20px 18px 14px; }
 .resume-card[hidden] { display: none; }

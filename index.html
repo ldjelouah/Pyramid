@@ -39,6 +39,35 @@
         <p class="tagline">Rejoue ton gain à chaque palier<br>jusqu'à ton objectif.</p>
       </header>
 
+      <nav class="ladder-tabs" id="ladder-tabs" aria-label="Montantes"></nav>
+      <div class="ladder-actions" id="ladder-actions">
+        <button id="btn-rename" type="button" class="btn-link btn-link-sm">Renommer</button>
+        <button id="btn-delete" type="button" class="btn-link btn-link-sm">Supprimer</button>
+      </div>
+
+      <form class="card ladder-form" id="ladder-form" hidden novalidate>
+        <h2 class="section-title" id="ladder-form-title">Nouvelle montante</h2>
+        <div class="ladder-suggest" id="ladder-suggest">
+          <button type="button" data-name="Winamax">Winamax</button>
+          <button type="button" data-name="Bet365">Bet365</button>
+          <button type="button" data-name="Betclic">Betclic</button>
+          <button type="button" data-name="Unibet">Unibet</button>
+          <button type="button" data-name="PMU">PMU</button>
+          <button type="button" data-name="ParionsSport">ParionsSport</button>
+        </div>
+        <label class="field">
+          <span class="field-label">Nom du bookmaker</span>
+          <span class="field-input">
+            <input id="input-ladder-name" type="text" maxlength="24" placeholder="Autre…" autocomplete="off">
+          </span>
+        </label>
+        <p id="ladder-error" class="error" role="alert" hidden></p>
+        <div class="cashout-actions">
+          <button id="btn-ladder-cancel" type="button" class="btn btn-secondary btn-sm">Annuler</button>
+          <button type="submit" class="btn btn-primary btn-sm" id="btn-ladder-submit">Créer</button>
+        </div>
+      </form>
+
       <form id="setup-form" class="card form" novalidate>
         <label class="field">
           <span class="field-label">Mise de départ</span>
@@ -115,7 +144,7 @@
         <div class="attempts-list" id="setup-attempts-list"></div>
       </section>
 
-      <button id="btn-reset" type="button" class="btn-link">Tout réinitialiser</button>
+      <button id="btn-reset" type="button" class="btn-link">Réinitialiser cette montante</button>
     </section>
 
     <!-- ÉCRAN 2 : PARTIE EN COURS -->
@@ -124,7 +153,7 @@
         <button id="btn-quit" type="button" class="btn-icon" aria-label="Retour à l'accueil, la partie reste en cours">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
         </button>
-        <span class="topbar-title">Palier <strong id="play-step">1</strong></span>
+        <span class="topbar-title"><span class="topbar-ladder" id="play-ladder"></span>Palier <strong id="play-step">1</strong></span>
         <span class="topbar-right" id="play-attempt">Tentative 1</span>
       </header>
 
