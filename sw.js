@@ -1,5 +1,5 @@
 /* Pyramid — service worker : cache-first sur les fichiers de l'app. */
-const CACHE = 'pyramid-v9';
+const CACHE = 'pyramid-v10';
 const ASSETS = [
   './',
   './index.html',

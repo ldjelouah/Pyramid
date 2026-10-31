@@ -27,9 +27,10 @@ Zéro dépendance, zéro build : du HTML, du CSS et du JavaScript.
 
 ## Plusieurs montantes
 
-Une montante par bookmaker. Le sélecteur en haut de l'accueil permet de passer de l'une à
-l'autre, d'en créer une nouvelle avec « + » (Winamax, Bet365, Betclic… ou un nom libre), de
-la renommer ou de la supprimer. Chaque montante a ses propres paramètres, sa partie en cours,
+Autant de montantes que tu veux, regroupées par bookmaker. Le sélecteur en haut de l'accueil
+permet de passer de l'une à l'autre, d'en créer une nouvelle avec « + » (Winamax, Bet365,
+Betclic… ou un nom libre, plus un libellé optionnel comme « Foot » ou « Tennis » pour en avoir
+plusieurs chez le même bookmaker), de la renommer ou de la supprimer. Chaque montante a ses propres paramètres, sa partie en cours,
 son historique, son bilan et son plafond de perte.
 
 ## Garde-fous
