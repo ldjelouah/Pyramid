@@ -37,15 +37,11 @@
 
   // ---------- État ----------
   const newId = () => `l_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
-  const LADDER_NAME_MAX = 24;
-  /** Nom affiché d'une montante : « Bet365 » ou « Bet365 · Foot ». */
-  const ladderName = (l) => (l.label ? `${l.bookmaker} · ${l.label}` : l.bookmaker);
 
-  /** Une montante : bookmaker, libellé optionnel, paramètres, partie en cours, compteurs, historique, garde-fou. */
-  const defaultLadder = (bookmaker, label = '') => ({
+  /** Une montante : paramètres, partie en cours, compteurs, historique, garde-fou. */
+  const defaultLadder = (name) => ({
     id: newId(),
-    bookmaker,
-    label,
+    name,
     createdAt: Date.now(),
     settings: { stake: null, target: null, lossCap: null },
     run: { status: 'idle', bankroll: 0, steps: [], attempt: 0, lostAt: null, pending: null, secured: 0 },
@@ -61,16 +57,23 @@
 
   const PAUSE_MS = 24 * 60 * 60 * 1000;
 
+  /** Nom stocké, ou reconstruit depuis bookmaker + libellé (format d'une version intermédiaire). */
+  function legacyName(parsed) {
+    const clean = (v) => (typeof v === 'string' ? v.trim().replace(/\s+/g, ' ') : '');
+    const name = clean(parsed.name);
+    if (name) return name.slice(0, 24);
+    const bookmaker = clean(parsed.bookmaker);
+    if (!bookmaker) return '';
+    const label = clean(parsed.label);
+    return (label ? `${bookmaker} ${label}` : bookmaker).slice(0, 24);
+  }
+
   /** Fusionne une montante stockée avec les valeurs par défaut (anciens champs absents). */
   function normalizeLadder(parsed, fallbackName) {
     const base = defaultLadder(fallbackName);
-    const clean = (v) => (typeof v === 'string' ? v.trim().replace(/\s+/g, ' ').slice(0, LADDER_NAME_MAX) : '');
-    // Anciens états : un seul champ `name`, qui devient le bookmaker.
-    const bookmaker = clean(parsed.bookmaker) || clean(parsed.name) || fallbackName;
     return {
       id: typeof parsed.id === 'string' && parsed.id ? parsed.id : base.id,
-      bookmaker,
-      label: clean(parsed.label),
+      name: legacyName(parsed) || fallbackName,
       createdAt: parsed.createdAt || base.createdAt,
       settings: { ...base.settings, ...(parsed.settings || {}) },
       run: { ...base.run, ...(parsed.run || {}) },
@@ -172,7 +175,6 @@
     ladderFormTitle: $('ladder-form-title'),
     ladderSuggest: $('ladder-suggest'),
     inputLadderName: $('input-ladder-name'),
-    inputLadderLabel: $('input-ladder-label'),
     ladderError: $('ladder-error'),
     btnLadderCancel: $('btn-ladder-cancel'),
     btnLadderSubmit: $('btn-ladder-submit'),
@@ -416,6 +418,7 @@
   }
 
   // ---------- Montantes (sélecteur) ----------
+  const LADDER_NAME_MAX = 24;
   let ladderFormMode = null; // null | 'create' | 'rename'
 
   function ladderStatus(l) {
@@ -424,44 +427,16 @@
     return 'idle';
   }
 
-  /** Montantes regroupées par bookmaker, dans l'ordre de première apparition. */
-  function ladderGroups() {
-    const groups = [];
-    root.ladders.forEach((l) => {
-      const key = l.bookmaker.toLowerCase();
-      let g = groups.find((x) => x.key === key);
-      if (!g) { g = { key, bookmaker: l.bookmaker, ladders: [] }; groups.push(g); }
-      g.ladders.push(l);
-    });
-    groups.forEach((g) => g.ladders.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)));
-    return groups;
-  }
-
   function renderLadderTabs() {
     el.ladderTabs.innerHTML = '';
-    ladderGroups().forEach((g) => {
-      const many = g.ladders.length > 1;
-      const wrap = document.createElement('div');
-      wrap.className = 'ladder-group';
-      const caption = document.createElement('span');
-      caption.className = 'ladder-group-caption';
-      caption.textContent = many ? g.bookmaker : '';
-      wrap.appendChild(caption);
-      const row = document.createElement('div');
-      row.className = 'ladder-group-tabs';
-      g.ladders.forEach((l) => {
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = `ladder-tab${l.id === root.activeId ? ' active' : ''}`;
-        b.dataset.id = l.id;
-        const text = many ? (l.label || 'Principale') : ladderName(l);
-        b.innerHTML = `<span class="ladder-dot ${ladderStatus(l)}" aria-hidden="true"></span>${escapeHtml(text)}`;
-        b.setAttribute('aria-label', ladderName(l));
-        b.setAttribute('aria-pressed', String(l.id === root.activeId));
-        row.appendChild(b);
-      });
-      wrap.appendChild(row);
-      el.ladderTabs.appendChild(wrap);
+    root.ladders.forEach((l) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = `ladder-tab${l.id === root.activeId ? ' active' : ''}`;
+      b.dataset.id = l.id;
+      b.innerHTML = `<span class="ladder-dot ${ladderStatus(l)}" aria-hidden="true"></span>${escapeHtml(l.name)}`;
+      b.setAttribute('aria-pressed', String(l.id === root.activeId));
+      el.ladderTabs.appendChild(b);
     });
     const add = document.createElement('button');
     add.type = 'button';
@@ -497,8 +472,7 @@
     ladderFormMode = mode;
     el.ladderFormTitle.textContent = mode === 'rename' ? 'Renommer la montante' : 'Nouvelle montante';
     el.btnLadderSubmit.textContent = mode === 'rename' ? 'Renommer' : 'Créer';
-    el.inputLadderName.value = mode === 'rename' ? state.bookmaker : '';
-    el.inputLadderLabel.value = mode === 'rename' ? state.label : '';
+    el.inputLadderName.value = mode === 'rename' ? state.name : '';
     el.ladderError.hidden = true;
     el.ladderSuggest.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.name === el.inputLadderName.value));
     renderLadderTabs();
@@ -510,39 +484,30 @@
     renderLadderTabs();
   }
 
-  function validLadderName(rawBookmaker, rawLabel, excludeId) {
-    const clean = (v) => String(v || '').trim().replace(/\s+/g, ' ').slice(0, LADDER_NAME_MAX);
-    const bookmaker = clean(rawBookmaker);
-    const label = clean(rawLabel);
-    if (!bookmaker) return { error: 'Indique le nom du bookmaker.' };
-    const dup = root.ladders.some((l) => l.id !== excludeId
-      && l.bookmaker.toLowerCase() === bookmaker.toLowerCase()
-      && l.label.toLowerCase() === label.toLowerCase());
-    if (dup) {
-      return { error: label
-        ? `Une montante « ${bookmaker} · ${label} » existe déjà.`
-        : `Ajoute un libellé pour distinguer cette montante de l'autre ${bookmaker}.` };
-    }
-    return { bookmaker, label };
+  function validLadderName(raw, excludeId) {
+    const name = String(raw || '').trim().replace(/\s+/g, ' ').slice(0, LADDER_NAME_MAX);
+    if (!name) return { error: 'Indique un nom pour cette montante.' };
+    const dup = root.ladders.some((l) => l.id !== excludeId && l.name.toLowerCase() === name.toLowerCase());
+    if (dup) return { error: `Une montante « ${name} » existe déjà.` };
+    return { name };
   }
 
   function onLadderSubmit(event) {
     event.preventDefault();
-    const check = validLadderName(el.inputLadderName.value, el.inputLadderLabel.value, ladderFormMode === 'rename' ? state.id : null);
+    const check = validLadderName(el.inputLadderName.value, ladderFormMode === 'rename' ? state.id : null);
     if (check.error) {
       el.ladderError.textContent = check.error;
       el.ladderError.hidden = false;
       return;
     }
     if (ladderFormMode === 'rename') {
-      state.bookmaker = check.bookmaker;
-      state.label = check.label;
+      state.name = check.name;
       ladderFormMode = null;
       save();
       render();
       return;
     }
-    const ladder = defaultLadder(check.bookmaker, check.label);
+    const ladder = defaultLadder(check.name);
     root.ladders.push(ladder);
     ladderFormMode = null;
     selectLadder(ladder.id);
@@ -551,11 +516,8 @@
   function onDeleteConfirmed() {
     if (root.ladders.length <= 1) return;
     const idx = root.ladders.findIndex((l) => l.id === state.id);
-    const bookmaker = state.bookmaker.toLowerCase();
     root.ladders.splice(idx, 1);
-    // De préférence une autre montante du même bookmaker, sinon la voisine.
-    const sibling = root.ladders.find((l) => l.bookmaker.toLowerCase() === bookmaker);
-    selectLadder((sibling || root.ladders[Math.max(0, idx - 1)]).id);
+    selectLadder(root.ladders[Math.max(0, idx - 1)].id);
   }
 
   // ---------- Partie en cours vue depuis l'accueil ----------
@@ -691,7 +653,7 @@
     const tiers = tierCount(run.steps);
     el.playStep.textContent = tiers + 1;
     el.playAttempt.textContent = `Tentative ${run.attempt}`;
-    el.playLadder.textContent = root.ladders.length > 1 ? `${ladderName(state)} · ` : '';
+    el.playLadder.textContent = root.ladders.length > 1 ? `${state.name} · ` : '';
     el.playBankroll.textContent = money(run.bankroll);
     el.playStart.textContent = money(settings.stake);
     el.playTarget.textContent = money(settings.target);
@@ -842,7 +804,7 @@
       ? 'Objectif atteint'
       : cashed ? 'Série encaissée' : `Perdu au palier ${run.lostAt ? run.lostAt.n : tiers + 1}`;
     const lostStake = run.lostAt ? run.lostAt.stake : run.bankroll;
-    const prefix = root.ladders.length > 1 ? `${ladderName(state)} : ` : '';
+    const prefix = root.ladders.length > 1 ? `${state.name} : ` : '';
     el.endSub.textContent = prefix + (won
       ? `Tu es passé de ${money(settings.stake)} à ${money(total)} en ${tiers} palier${plural}.`
       : cashed
@@ -1105,7 +1067,7 @@
   }
 
   function onEdit() {
-    state.run = defaultLadder(state.bookmaker).run;
+    state.run = defaultLadder(state.name).run;
     state.view = 'auto';
     el.inputStake.value = '';
     el.inputTarget.value = '';
@@ -1132,7 +1094,7 @@
     const { run } = state;
     state.abandoned = { run: JSON.parse(JSON.stringify(run)), attemptsTotalBefore: state.attempts.total, at: Date.now() };
     state.attempts.total = Math.max(0, state.attempts.total - 1);
-    state.run = defaultLadder(state.bookmaker).run;
+    state.run = defaultLadder(state.name).run;
     state.view = 'auto';
     save();
     render();
@@ -1150,8 +1112,8 @@
   }
 
   function onReset() {
-    if (!window.confirm(`Effacer les paramètres et toutes les statistiques de « ${ladderName(state)} » ?`)) return;
-    const fresh = defaultLadder(state.bookmaker, state.label);
+    if (!window.confirm(`Effacer les paramètres et toutes les statistiques de « ${state.name} » ?`)) return;
+    const fresh = defaultLadder(state.name);
     fresh.id = state.id;
     fresh.createdAt = state.createdAt;
     Object.keys(state).forEach((k) => { delete state[k]; });
