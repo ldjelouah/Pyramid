@@ -309,6 +309,7 @@ button { font: inherit; color: inherit; }
   line-height: 1.05;
 }
 .progress {
+  position: relative;
   margin-top: 20px;
   height: 10px;
   border-radius: 999px;
@@ -316,6 +317,27 @@ button { font: inherit; color: inherit; }
   overflow: hidden;
 }
 @media (prefers-color-scheme: light) { .progress { background: rgba(20, 24, 60, 0.10); } }
+.checkpoint-marks { position: absolute; inset: 0; pointer-events: none; }
+.checkpoint-mark {
+  position: absolute;
+  top: 50%;
+  width: 12px; height: 12px;
+  margin-left: -6px;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  border: 2px solid var(--gold);
+  background: var(--card);
+  box-shadow: 0 0 0 2px var(--card);
+}
+.checkpoint-mark.done { background: var(--gold); }
+.next-checkpoint {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.next-checkpoint strong { color: var(--gold); }
+.next-checkpoint:empty { display: none; }
 .progress-bar {
   height: 100%;
   width: 0%;
@@ -516,6 +538,10 @@ button { font: inherit; color: inherit; }
 }
 .history-list li.cashout .step-n { background: rgba(245, 181, 63, 0.18); color: var(--gold); }
 .history-list li.cashout .step-payout.down { color: var(--lose); }
+.history-list li.checkpoint { border-style: dashed; border-color: rgba(245, 181, 63, 0.4); }
+.history-list li.checkpoint .step-n { background: rgba(245, 181, 63, 0.18); color: var(--gold); }
+.history-list li.checkpoint .step-payout { color: var(--gold); }
+.history-list li.checkpoint .step-desc small { display: block; color: var(--text-3); font-size: 11px; }
 .history-list li.secure { border-style: dashed; border-color: rgba(245, 181, 63, 0.4); }
 .history-list li.secure .step-n { background: rgba(245, 181, 63, 0.18); color: var(--gold); }
 .history-list li.secure .step-payout { color: var(--gold); }
