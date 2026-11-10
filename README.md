@@ -8,10 +8,11 @@ ton objectif.
 - À chaque palier, tu entres la **cote** du pari et tu appuies sur **Placer le pari**. Quand le
   résultat est connu, tu reviens appuyer sur **Gagné** ou **Perdu**. Un palier validé par erreur
   se corrige avec **Annuler le dernier palier**.
-- **Paliers de retrait** : dès que le montant en jeu atteint 7,5× la mise, 1× la mise est mise
-  de côté ; à 75× la mise, 10× ; à 750×, 100× ; et ainsi de suite. Avec 1 € de départ : 1 € à
-  7,50 €, 10 € à 75 €, 100 € à 750 €, 1 000 € à 7 500 €, 10 000 € à 75 000 €. Les seuils sont
-  affichés sur la barre de progression. Ce qui est mis de côté reste acquis même si la série casse.
+- **Paliers de retrait** : dès que le montant en jeu atteint 3× la mise, la mise de départ est
+  mise de côté ; à 7,5× la mise, 1× la mise ; à 75×, 10× ; à 750×, 100× ; et ainsi de suite.
+  Avec 1 € de départ : 1 € à 3 €, 1 € à 7,50 €, 10 € à 75 €, 100 € à 750 €, 1 000 € à 7 500 €,
+  10 000 € à 75 000 €. Les seuils sont affichés sur la barre de progression. Ce qui est mis de
+  côté reste acquis même si la série casse.
 - **Cashout** enregistre le montant proposé par le bookmaker pour solder le pari en cours. Ce
   montant devient la mise du palier suivant.
 - **Encaisser** arrête la série avant l'objectif et garde le total obtenu.
