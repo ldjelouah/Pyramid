@@ -21,18 +21,24 @@
   /** Nombre de paliers joués. */
   const tierCount = (steps) => steps.filter((s) => !isReserveStep(s)).length;
 
-  /** Paliers de retrait : au seuil 7,5 × mise × 10^k, on met de côté mise × 10^k. */
-  const CHECKPOINT_STEPS = [1, 10, 100, 1000, 10000];
-  const THRESHOLD_FACTOR = 7.5;
+  /** Paliers de retrait, en multiples de la mise : [seuil atteint, montant mis de côté].
+   *  Dès 3× la mise on récupère la mise ; puis au seuil 7,5 × 10^k on met de côté 10^k × la mise. */
+  const CHECKPOINTS = [[3, 1], [7.5, 1], [75, 10], [750, 100], [7500, 1000], [75000, 10000]];
   function checkpointsFor(stake) {
     if (!(stake > 0)) return [];
-    return CHECKPOINT_STEPS.map((m, index) => ({
+    return CHECKPOINTS.map(([t, m], index) => ({
       index,
       amount: round2(stake * m),
-      threshold: round2(stake * m * THRESHOLD_FACTOR),
+      threshold: round2(stake * t),
     }));
   }
-  const nextCheckpoint = (run, stake) => checkpointsFor(stake).find((c) => c.index >= (run.checkpointsDone || 0)) || null;
+  /** Un seuil est passé si un retrait d'un seuil au moins égal a déjà été enregistré dans la tentative.
+   *  (Dérivé des entrées, et non d'un compteur, pour rester juste si la liste des seuils change.) */
+  function checkpointsDoneCount(run, stake) {
+    const maxDone = run.steps.reduce((m, s) => (kindOf(s) === 'checkpoint' && s.threshold > m ? s.threshold : m), 0);
+    return checkpointsFor(stake).filter((c) => c.threshold <= maxDone).length;
+  }
+  const nextCheckpoint = (run, stake) => checkpointsFor(stake).find((c) => c.index >= checkpointsDoneCount(run, stake)) || null;
   /** Total de la tentative : montant en jeu + montant mis de côté. */
   const totalOf = (run) => round2(run.bankroll + (run.secured || 0));
   const LOCK = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
@@ -54,7 +60,7 @@
     name,
     createdAt: Date.now(),
     settings: { stake: null, target: null, lossCap: null },
-    run: { status: 'idle', bankroll: 0, steps: [], attempt: 0, lostAt: null, pending: null, secured: 0, checkpointsDone: 0 },
+    run: { status: 'idle', bankroll: 0, steps: [], attempt: 0, lostAt: null, pending: null, secured: 0 },
     attempts: { total: 0, won: 0, lost: 0, cashed: 0 },
     history: [],
     // Garde-fou : pertes mesurées depuis `since`, pause active jusqu'à `pausedUntil`.
@@ -724,7 +730,7 @@
   /** Repères des seuils de retrait sur la barre et libellé du prochain retrait. */
   function renderCheckpoints(run, settings) {
     const list = checkpointsFor(settings.stake).filter((c) => c.threshold < settings.target);
-    const done = run.checkpointsDone || 0;
+    const done = checkpointsDoneCount(run, settings.stake);
     el.checkpointMarks.innerHTML = list.map((c) => {
       const left = progressPercent(c.threshold, settings.stake, settings.target);
       return `<span class="checkpoint-mark${c.index < done ? ' done' : ''}" style="left:${left}%" title="${money(c.amount)} à ${money(c.threshold)}"></span>`;
@@ -880,7 +886,6 @@
       lostAt: null,
       pending: null,
       secured: 0,
-      checkpointsDone: 0,
     };
     state.view = 'auto';
     state.abandoned = null;
@@ -976,7 +981,6 @@
       const c = run.steps.pop();
       run.bankroll = round2(run.bankroll + c.amount);
       run.secured = round2((run.secured || 0) - c.amount);
-      run.checkpointsDone = Math.max(0, (run.checkpointsDone || 0) - 1);
     }
   }
 
@@ -995,7 +999,6 @@
       run.bankroll = round2(run.bankroll - next.amount);
       run.secured = round2((run.secured || 0) + next.amount);
       run.steps.push({ kind: 'checkpoint', index: next.index, amount: next.amount, threshold: next.threshold });
-      run.checkpointsDone = next.index + 1;
       next = nextCheckpoint(run, settings.stake);
     }
   }
