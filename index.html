@@ -226,9 +226,14 @@
       </div>
 
       <section class="history" id="play-history" hidden>
-        <h2 class="section-title">Paliers passés</h2>
+        <h2 class="section-title" id="play-history-title">Paliers passés</h2>
         <ol class="history-list" id="play-history-list"></ol>
         <button id="btn-undo" type="button" class="btn-link" hidden>Annuler le dernier palier</button>
+        <div class="projection" id="play-projection" hidden>
+          <h2 class="section-title">Paliers à venir</h2>
+          <p class="hint projection-hint" id="play-projection-hint"></p>
+          <ol class="history-list projected-list" id="play-projection-list"></ol>
+        </div>
       </section>
 
       <div class="actions actions-place" id="actions-place">

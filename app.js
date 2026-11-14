@@ -223,6 +223,10 @@
     playError: $('play-error'),
     playHistory: $('play-history'),
     playHistoryList: $('play-history-list'),
+    playHistoryTitle: $('play-history-title'),
+    playProjection: $('play-projection'),
+    playProjectionHint: $('play-projection-hint'),
+    playProjectionList: $('play-projection-list'),
     btnUndo: $('btn-undo'),
     playSecured: $('play-secured'),
     playSecuredAmount: $('play-secured-amount'),
@@ -723,8 +727,75 @@
     el.btnUndo.hidden = !!pending || run.steps.length === 0;
     const last = run.steps[run.steps.length - 1];
     el.btnUndo.textContent = last && kindOf(last) === 'secure' ? 'Annuler la récupération de la mise' : 'Annuler le dernier palier';
-    el.playHistory.hidden = run.steps.length === 0 && !pending;
+    const hasPast = run.steps.length > 0 || !!pending;
+    el.playHistoryTitle.hidden = !hasPast;
+    el.playHistoryList.hidden = !hasPast;
+    const projected = renderProjection(run, settings);
+    el.playHistory.hidden = !hasPast && projected === 0;
     updatePayout();
+  }
+
+  /** Cote moyenne utilisée pour projeter les paliers à venir. */
+  const PROJECTION_ODDS = 1.5;
+  const PROJECTION_MAX_TIERS = 80;
+
+  /** Paliers théoriques restants jusqu'à l'objectif, retraits automatiques inclus.
+   *  Un pari en attente est supposé gagné à sa cote réelle ; la suite est jouée à la cote moyenne. */
+  function projectTiers(run, settings) {
+    const sim = { bankroll: run.bankroll, secured: run.secured || 0, steps: run.steps.map((s) => ({ ...s })) };
+    const out = [];
+    let n = tierCount(sim.steps);
+    let usePending = !!run.pending;
+    let tiers = 0;
+    while (totalOf(sim) < settings.target && sim.bankroll > 0 && tiers < PROJECTION_MAX_TIERS) {
+      const o = usePending ? run.pending.odds : PROJECTION_ODDS;
+      const stake = sim.bankroll;
+      const payout = round2(stake * o);
+      if (!(payout > stake)) break;
+      n += 1;
+      const before = sim.steps.length;
+      const step = { kind: 'win', n, stake, odds: o, payout };
+      sim.steps.push(step);
+      sim.bankroll = payout;
+      applyCheckpoints(sim, settings);
+      // Le pari en attente a déjà sa ligne « en attente » : on ne montre que les retraits qu'il déclencherait.
+      if (!usePending) { out.push(step); tiers += 1; }
+      out.push(...sim.steps.slice(before + 1));
+      usePending = false;
+    }
+    const reached = totalOf(sim) >= settings.target;
+    if (reached) {
+      const lastWin = [...out].reverse().find((s) => s.kind === 'win');
+      if (lastWin) { lastWin.goal = true; lastWin.goalTotal = totalOf(sim); }
+    }
+    return { rows: out, tiers, reached, total: totalOf(sim), secured: sim.secured };
+  }
+
+  function projectedRow(s) {
+    if (s.kind === 'checkpoint') {
+      return `<li class="projected checkpoint"><span class="step-n">${LOCK}</span>` +
+        `<span class="step-desc">Retrait ${s.index + 1}<small>au seuil de ${money(s.threshold)}</small></span>` +
+        `<span class="step-payout">+${money(s.amount)}</span></li>`;
+    }
+    return `<li class="projected${s.goal ? ' goal' : ''}"><span class="step-n">${s.n}</span>` +
+      `<span class="step-desc"><b>${money(s.stake)}</b> × ${odds(s.odds)}${s.goal ? `<small>objectif atteint, total ${money(s.goalTotal)}</small>` : ''}</span>` +
+      `<span class="step-payout">${money(s.payout)}</span></li>`;
+  }
+
+  /** Affiche la projection sous les paliers passés. Renvoie le nombre de lignes affichées. */
+  function renderProjection(run, settings) {
+    const p = projectTiers(run, settings);
+    el.playProjection.hidden = p.rows.length === 0;
+    if (p.rows.length === 0) { el.playProjectionList.innerHTML = ''; return 0; }
+    const plural = p.tiers > 1 ? 's' : '';
+    const lead = run.pending ? 'Si le pari en cours passe, encore' : 'Encore';
+    el.playProjectionHint.textContent = !p.reached
+      ? `Projection à une cote moyenne de ${odds(PROJECTION_ODDS)}, limitée aux ${PROJECTION_MAX_TIERS} prochains paliers.`
+      : p.tiers === 0
+        ? "Si le pari en cours passe, l'objectif est atteint."
+        : `${lead} ${p.tiers} palier${plural} gagné${plural} à une cote moyenne de ${odds(PROJECTION_ODDS)} pour atteindre l'objectif, avec ${money(p.secured)} mis de côté à l'arrivée.`;
+    el.playProjectionList.innerHTML = p.rows.map(projectedRow).join('');
+    return p.rows.length;
   }
 
   /** Repères des seuils de retrait sur la barre et libellé du prochain retrait. */
