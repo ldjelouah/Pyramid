@@ -13,6 +13,9 @@ ton objectif.
   Avec 1 € de départ : 1 € à 3 €, 1 € à 7,50 €, 10 € à 75 €, 100 € à 750 €, 1 000 € à 7 500 €,
   10 000 € à 75 000 €. Les seuils sont affichés sur la barre de progression. Ce qui est mis de
   côté reste acquis même si la série casse.
+- **Paliers à venir** : sous les paliers passés, une projection en pointillés montre les
+  paliers restants jusqu'à l'objectif à une cote moyenne de 1,50, retraits inclus. C'est un
+  repère théorique, pas une prévision.
 - **Cashout** enregistre le montant proposé par le bookmaker pour solder le pari en cours. Ce
   montant devient la mise du palier suivant.
 - **Encaisser** arrête la série avant l'objectif et garde le total obtenu.
