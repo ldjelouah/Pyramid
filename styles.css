@@ -211,6 +211,7 @@ button { font: inherit; color: inherit; }
   background: linear-gradient(135deg, #ffd98a, var(--gold));
   box-shadow: 0 8px 20px rgba(245, 181, 63, 0.28);
 }
+.app-version { text-align: center; font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
 .btn-link {
   background: none;
   border: 0;

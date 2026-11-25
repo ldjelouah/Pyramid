@@ -63,6 +63,11 @@ L'app est en ligne sur : `https://ldjelouah.github.io/Pyramid/`
 
 L'app s'ouvre alors en plein écran comme une app native.
 
+## Mises à jour
+
+L'app vérifie s'il existe une nouvelle version à chaque ouverture et se recharge d'elle-même
+quand elle en trouve une. Le numéro de version est affiché en bas de l'écran d'accueil.
+
 ## Lancer en local
 
 ```bash
