@@ -735,20 +735,44 @@
     updatePayout();
   }
 
-  /** Cote moyenne utilisée pour projeter les paliers à venir. */
-  const PROJECTION_ODDS = 1.5;
+  /** Cote utilisée pour projeter les paliers à venir tant qu'aucun pari n'a été joué. */
+  const DEFAULT_PROJECTION_ODDS = 1.5;
   const PROJECTION_MAX_TIERS = 80;
+
+  /** Cotes de tous les paris déjà tranchés sur cette montante : tentatives archivées et partie en cours.
+   *  Gagnés, soldés en cashout et perdus comptent ; le pari en attente non. */
+  function playedOdds(ladder) {
+    const list = [];
+    const fromSteps = (steps) => steps.forEach((s) => {
+      const k = kindOf(s);
+      if ((k === 'win' || k === 'cashout') && s.odds > 0) list.push(s.odds);
+    });
+    (ladder.history || []).forEach((h) => {
+      fromSteps(h.steps || []);
+      if (h.status === 'lost' && h.lostAt && h.lostAt.odds > 0) list.push(h.lostAt.odds);
+    });
+    fromSteps(ladder.run.steps || []);
+    return list;
+  }
+
+  /** Moyenne des cotes jouées, arrondie à deux décimales, ou 1,50 par défaut. */
+  function projectionOdds(ladder) {
+    const list = playedOdds(ladder);
+    if (list.length === 0) return { odds: DEFAULT_PROJECTION_ODDS, count: 0 };
+    const avg = round2(list.reduce((a, b) => a + b, 0) / list.length);
+    return { odds: Math.max(1.01, avg), count: list.length };
+  }
 
   /** Paliers théoriques restants jusqu'à l'objectif, retraits automatiques inclus.
    *  Un pari en attente est supposé gagné à sa cote réelle ; la suite est jouée à la cote moyenne. */
-  function projectTiers(run, settings) {
+  function projectTiers(run, settings, avgOdds) {
     const sim = { bankroll: run.bankroll, secured: run.secured || 0, steps: run.steps.map((s) => ({ ...s })) };
     const out = [];
     let n = tierCount(sim.steps);
     let usePending = !!run.pending;
     let tiers = 0;
     while (totalOf(sim) < settings.target && sim.bankroll > 0 && tiers < PROJECTION_MAX_TIERS) {
-      const o = usePending ? run.pending.odds : PROJECTION_ODDS;
+      const o = usePending ? run.pending.odds : avgOdds;
       const stake = sim.bankroll;
       const payout = round2(stake * o);
       if (!(payout > stake)) break;
@@ -784,16 +808,20 @@
 
   /** Affiche la projection sous les paliers passés. Renvoie le nombre de lignes affichées. */
   function renderProjection(run, settings) {
-    const p = projectTiers(run, settings);
+    const avg = projectionOdds(state);
+    const p = projectTiers(run, settings, avg.odds);
     el.playProjection.hidden = p.rows.length === 0;
     if (p.rows.length === 0) { el.playProjectionList.innerHTML = ''; return 0; }
     const plural = p.tiers > 1 ? 's' : '';
     const lead = run.pending ? 'Si le pari en cours passe, encore' : 'Encore';
+    const source = avg.count > 0
+      ? `ta cote moyenne de ${odds(avg.odds)} (${avg.count} pari${avg.count > 1 ? 's' : ''} joué${avg.count > 1 ? 's' : ''})`
+      : `une cote moyenne de ${odds(avg.odds)}, en attendant tes premiers paris`;
     el.playProjectionHint.textContent = !p.reached
-      ? `Projection à une cote moyenne de ${odds(PROJECTION_ODDS)}, limitée aux ${PROJECTION_MAX_TIERS} prochains paliers.`
+      ? `Projection à ${source}, limitée aux ${PROJECTION_MAX_TIERS} prochains paliers.`
       : p.tiers === 0
         ? "Si le pari en cours passe, l'objectif est atteint."
-        : `${lead} ${p.tiers} palier${plural} gagné${plural} à une cote moyenne de ${odds(PROJECTION_ODDS)} pour atteindre l'objectif, avec ${money(p.secured)} mis de côté à l'arrivée.`;
+        : `${lead} ${p.tiers} palier${plural} gagné${plural} à ${source} pour atteindre l'objectif, avec ${money(p.secured)} mis de côté à l'arrivée.`;
     el.playProjectionList.innerHTML = p.rows.map(projectedRow).join('');
     return p.rows.length;
   }
