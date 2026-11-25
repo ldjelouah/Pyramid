@@ -2,7 +2,7 @@
  * Réseau d'abord : en ligne, on sert toujours la dernière version publiée et on met le cache à jour ;
  * hors ligne, on retombe sur la copie en cache. Le cache HTTP du navigateur est contourné pour que
  * GitHub Pages (max-age de 10 minutes) ne puisse pas servir une ancienne version. */
-const VERSION = '16';
+const VERSION = '17';
 const CACHE = `pyramid-v${VERSION}`;
 const ASSETS = [
   './',
