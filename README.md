@@ -14,8 +14,9 @@ ton objectif.
   10 000 € à 75 000 €. Les seuils sont affichés sur la barre de progression. Ce qui est mis de
   côté reste acquis même si la série casse.
 - **Paliers à venir** : sous les paliers passés, une projection en pointillés montre les
-  paliers restants jusqu'à l'objectif à une cote moyenne de 1,50, retraits inclus. C'est un
-  repère théorique, pas une prévision.
+  paliers restants jusqu'à l'objectif, retraits inclus. Elle utilise la moyenne des cotes de
+  tous les paris déjà tranchés sur cette montante (gagnés, perdus ou soldés en cashout), ou
+  1,50 tant qu'aucun pari n'a été joué. C'est un repère théorique, pas une prévision.
 - **Cashout** enregistre le montant proposé par le bookmaker pour solder le pari en cours. Ce
   montant devient la mise du palier suivant.
 - **Encaisser** arrête la série avant l'objectif et garde le total obtenu.
