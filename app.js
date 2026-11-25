@@ -6,6 +6,8 @@
   'use strict';
 
   const STORAGE_KEY = 'pyramid:v2';
+  /** Numéro de version affiché sur l'accueil ; à garder aligné avec VERSION dans sw.js. */
+  const APP_VERSION = '16';
   const LEGACY_KEY = 'pyramid:v1';
 
   const fmtMoney = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
@@ -183,6 +185,7 @@
     statWon: $('stat-won'),
     statLost: $('stat-lost'),
     btnReset: $('btn-reset'),
+    appVersion: $('app-version'),
     ladderTabs: $('ladder-tabs'),
     ladderActions: $('ladder-actions'),
     btnRename: $('btn-rename'),
@@ -1336,11 +1339,27 @@
   el.btnEdit.addEventListener('click', onEdit);
 
   // ---------- Démarrage ----------
+  el.appVersion.textContent = `Version ${APP_VERSION}`;
   render();
 
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+    // Quand une nouvelle version prend la main, on recharge une fois pour l'afficher tout de suite.
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController || reloaded) return;
+      reloaded = true;
+      window.location.reload();
+    });
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js').catch(() => { /* hors ligne ou non supporté */ });
+      navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+        .then((reg) => reg.update())
+        .catch(() => { /* hors ligne ou non supporté */ });
+    });
+    // Au retour sur l'app (PWA restée en mémoire), on vérifie s'il y a une mise à jour.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') return;
+      navigator.serviceWorker.getRegistration().then((reg) => reg && reg.update()).catch(() => {});
     });
   }
 })();

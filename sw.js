@@ -1,5 +1,9 @@
-/* Pyramid — service worker : cache-first sur les fichiers de l'app. */
-const CACHE = 'pyramid-v15';
+/* Pyramid — service worker.
+ * Réseau d'abord : en ligne, on sert toujours la dernière version publiée et on met le cache à jour ;
+ * hors ligne, on retombe sur la copie en cache. Le cache HTTP du navigateur est contourné pour que
+ * GitHub Pages (max-age de 10 minutes) ne puisse pas servir une ancienne version. */
+const VERSION = '16';
+const CACHE = `pyramid-v${VERSION}`;
 const ASSETS = [
   './',
   './index.html',
@@ -13,7 +17,9 @@ const ASSETS = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting())
+    caches.open(CACHE)
+      .then((cache) => cache.addAll(ASSETS.map((url) => new Request(url, { cache: 'reload' }))))
+      .then(() => self.skipWaiting())
   );
 });
 
@@ -26,19 +32,19 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
+  const { request } = event;
+  if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin) return;
   event.respondWith(
-    caches.match(event.request, { ignoreSearch: true }).then((cached) => {
-      const network = fetch(event.request)
-        .then((response) => {
-          if (response && response.ok && new URL(event.request.url).origin === self.location.origin) {
-            const copy = response.clone();
-            caches.open(CACHE).then((cache) => cache.put(event.request, copy));
-          }
-          return response;
-        })
-        .catch(() => cached);
-      return cached || network;
-    })
+    fetch(request, { cache: 'no-cache' })
+      .then((response) => {
+        if (response && response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE).then((cache) => cache.put(request, copy));
+        }
+        return response;
+      })
+      .catch(() => caches.match(request, { ignoreSearch: true })
+        .then((cached) => cached || (request.mode === 'navigate' ? caches.match('./index.html') : undefined))
+        .then((res) => res || Response.error()))
   );
 });
